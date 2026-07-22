@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 低饱和暖色系：stone/amber 暖白背景 + 暖棕主色 */
+    --background: 30 20% 98%; /* #faf9f7 附近 */
+    --foreground: 24 10% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 10% 15%;
+
+    --primary: 28 65% 32%; /* 暖棕/琥珀 */
+    --primary-foreground: 40 30% 97%;
+
+    --secondary: 30 18% 93%;
+    --secondary-foreground: 28 40% 26%;
+
+    --muted: 30 14% 94%;
+    --muted-foreground: 25 8% 42%;
+
+    --accent: 36 45% 92%;
+    --accent-foreground: 28 55% 28%;
+
+    --destructive: 8 62% 44%;
+    --destructive-foreground: 40 30% 97%;
+
+    --border: 28 14% 88%;
+    --input: 28 14% 84%;
+    --ring: 28 65% 32%;
+
+    --radius: 0.625rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial,
+      sans-serif;
+  }
+}

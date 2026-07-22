@@ -1,0 +1,5 @@
+package_override:
+  package: cloud.lazycat.ety001.emailnotify.dev
+contentdir:
+envs:
+  - DEV_MODE=1

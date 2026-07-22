@@ -1,0 +1,17 @@
+application:
+  subdomain: email-notify
+  # 本应用需要持续在后台轮询邮箱，声明后台任务避免平台主动休眠
+  background_task: true
+  routes:
+    - /=file:///lzcapp/pkg/content/dist
+  upstreams:
+    - location: /api
+      backend: http://127.0.0.1:8000/
+      backend_launch_command: /lzcapp/pkg/content/email-notify-server
+      # 保留 /api 前缀，前后端共用一套路径
+      disable_trim_location: true
+  environment:
+    - CONFIG_DIR=/lzcapp/var
+  health_check:
+    test_url: http://127.0.0.1:8000/api/health
+    start_period: 60s
