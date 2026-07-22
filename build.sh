@@ -14,9 +14,10 @@ mkdir -p "$OUT"
 echo "==> 构建前端"
 cd "$ROOT/frontend"
 if [ -f package-lock.json ]; then
-  npm ci --include=dev
+  # 个别 CI 环境默认缓存损坏会导致安装出空壳包，指定全新缓存目录规避
+  npm ci --include=dev --cache /tmp/npm-build-cache --no-audit --no-fund
 else
-  npm install --include=dev
+  npm install --include=dev --cache /tmp/npm-build-cache --no-audit --no-fund
 fi
 # 个别 CI 环境 npm 不生成 node_modules/.bin，兜底直接调用 vite.js
 if [ -x node_modules/.bin/vite ]; then

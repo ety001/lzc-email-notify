@@ -23,10 +23,18 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: 安装依赖
+      - name: 安装依赖（npm 损坏时自动切 pnpm）
         run: |
-          npm ci --include=dev
-          echo "::notice title=依赖安装诊断::bin-links=[$(npm config get bin-links)] vite包=$([ -d node_modules/vite ] && echo 有 || echo 无) bin=$([ -e node_modules/.bin/vite ] && echo 有 || echo 无)"
+          npm ci --include=dev --cache /tmp/npm-fresh-cache --no-audit --no-fund
+          if [ ! -e node_modules/vite/bin/vite.js ]; then
+            echo "::notice title=安装器切换::npm 全新缓存后 vite 文件仍缺失，切换 corepack pnpm"
+            rm -rf node_modules
+            corepack enable
+            corepack prepare pnpm@10 --activate
+            pnpm install
+          fi
+          echo "::notice title=依赖安装诊断::vite.js=$([ -e node_modules/vite/bin/vite.js ] && echo 有 || echo 无) bin=$([ -e node_modules/.bin/vite ] && echo 有 || echo 无)"
+          test -e node_modules/vite/bin/vite.js
       - name: 构建（bin 缺失时直接调用 vite.js；失败日志写入 annotation）
         run: |
           set +e
