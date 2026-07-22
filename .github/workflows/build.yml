@@ -29,9 +29,8 @@ jobs:
           if [ ! -e node_modules/vite/bin/vite.js ]; then
             echo "::notice title=安装器切换::npm 全新缓存后 vite 文件仍缺失，切换 corepack pnpm"
             rm -rf node_modules
-            corepack enable
-            corepack prepare pnpm@10 --activate
-            pnpm install
+            corepack enable || true
+            corepack pnpm@10 install --frozen-lockfile
           fi
           echo "::notice title=依赖安装诊断::vite.js=$([ -e node_modules/vite/bin/vite.js ] && echo 有 || echo 无) bin=$([ -e node_modules/.bin/vite ] && echo 有 || echo 无)"
           test -e node_modules/vite/bin/vite.js

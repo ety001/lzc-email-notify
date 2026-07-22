@@ -13,11 +13,17 @@ mkdir -p "$OUT"
 
 echo "==> 构建前端"
 cd "$ROOT/frontend"
-if [ -f package-lock.json ]; then
-  # 个别 CI 环境默认缓存损坏会导致安装出空壳包，指定全新缓存目录规避
-  npm ci --include=dev --cache /tmp/npm-build-cache --no-audit --no-fund
-else
-  npm install --include=dev --cache /tmp/npm-build-cache --no-audit --no-fund
+# 个别 CI 环境 npm 会安装出空壳包，指定全新缓存目录；失败则切换 corepack pnpm
+npm ci --include=dev --cache /tmp/npm-build-cache --no-audit --no-fund || true
+if [ ! -e node_modules/vite/bin/vite.js ]; then
+  echo "npm 安装异常（vite 文件缺失），切换 corepack pnpm"
+  rm -rf node_modules
+  corepack enable || true
+  if [ -f pnpm-lock.yaml ]; then
+    corepack pnpm@10 install --frozen-lockfile
+  else
+    corepack pnpm@10 install
+  fi
 fi
 # 个别 CI 环境 npm 不生成 node_modules/.bin，兜底直接调用 vite.js
 if [ -x node_modules/.bin/vite ]; then
