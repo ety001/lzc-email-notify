@@ -25,24 +25,25 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: npm ci
         run: npm ci --include=dev
-      - name: 构建
+      - name: 构建（失败日志写入 annotation）
         run: |
           set +e
-          npm run build > /tmp/fe-build.log 2>&1
+          {
+            echo "== node: $(node --version)  npm: $(npm --version)"
+            echo "== pwd: $(pwd)"
+            echo "== node_modules/.bin:"
+            ls node_modules/.bin 2>&1 | head -20
+            echo "== npm run build =="
+            npm run build
+          } > /tmp/fe-build.log 2>&1
           code=$?
+          if [ $code -ne 0 ]; then
+            escaped=$(tail -80 /tmp/fe-build.log | sed 's/%/%25/g' | tr -d '\r' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=前端构建失败日志::${escaped}"
+          fi
           cat /tmp/fe-build.log
           exit $code
       - run: test -f dist/index.html
-      - name: 失败日志回传仓库（诊断用）
-        if: failure()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          mkdir -p ci-logs
-          cp /tmp/fe-build.log "ci-logs/frontend-build-$(date +%Y%m%d-%H%M%S).log"
-          git add ci-logs/
-          git commit -m "ci-logs: 前端构建失败日志 [skip ci]"
-          git push origin HEAD:master
 
   backend:
     name: 后端构建与测试
