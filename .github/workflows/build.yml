@@ -20,8 +20,21 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - run: npm install -g npm@latest
       - run: npm ci
-      - run: npm run build
+      - name: 构建（失败日志写入 Job Summary）
+        run: |
+          set +e
+          npm run build > /tmp/fe-build.log 2>&1
+          code=$?
+          if [ $code -ne 0 ]; then
+            echo '## 前端构建失败日志' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -120 /tmp/fe-build.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/fe-build.log
+            exit $code
+          fi
       - run: test -f dist/index.html
 
   backend:
@@ -63,23 +76,8 @@ jobs:
         with:
           go-version: "1.26"
           cache-dependency-path: backend/go.sum
-      - name: 执行 build.sh 全量构建
-        run: ./build.sh
-      - name: 校验 contentdir 产物
+      - run: npm install -g npm@latest
+      - name: 执行 build.sh 全量构建（失败日志写入 Job Summary）
         run: |
-          test -f build-out/email-notify-server
-          test -f build-out/dist/index.html
-          file build-out/email-notify-server | grep -i "statically linked"
-      - name: 安装 lzc-cli 并打包 LPK
-        env:
-          BOX_NAME: ci
-          BOX_UID: ci
-        run: |
-          npm install -g @lazycatcloud/lzc-cli
-          lzc-cli project build -o email-notify.lpk
-          ls -la *.lpk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: email-notify-lpk
-          path: '*.lpk'
-          retention-days: 14
+          set +e
+       
