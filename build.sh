@@ -18,7 +18,12 @@ if [ -f package-lock.json ]; then
 else
   npm install --include=dev
 fi
-npm run build
+# 个别 CI 环境 npm 不生成 node_modules/.bin，兜底直接调用 vite.js
+if [ -x node_modules/.bin/vite ]; then
+  npm run build
+else
+  node node_modules/vite/bin/vite.js build
+fi
 cp -r "$ROOT/frontend/dist" "$OUT/dist"
 
 echo "==> 构建后端"
