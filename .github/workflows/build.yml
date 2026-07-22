@@ -23,8 +23,22 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: npm ci
-        run: npm ci --include=dev
+      - name: 安装依赖（诊断+自愈）
+        run: |
+          echo "NODE_ENV=${NODE_ENV:-<unset>} npm=$(npm --version) node=$(node --version)"
+          echo "npm config: omit=[$(npm config get omit)] include=[$(npm config get include)] production=[$(npm config get production)]"
+          npm ci --include=dev
+          echo "ci 后: vite包=$([ -d node_modules/vite ] && echo 有 || echo 无) bin=$([ -e node_modules/.bin/vite ] && echo 有 || echo 无)"
+          echo "::notice title=依赖安装诊断::NODE_ENV=${NODE_ENV:-unset} npm=$(npm --version) omit=[$(npm config get omit)] vite包=$([ -d node_modules/vite ] && echo 有 || echo 无) bin=$([ -e node_modules/.bin/vite ] && echo 有 || echo 无)"
+          if [ ! -e node_modules/.bin/vite ]; then
+            echo "::notice title=依赖自愈::npm ci 后 vite bin 缺失，尝试 rebuild/install"
+            npm rebuild 2>&1 | tail -3
+            [ -d node_modules/vite ] || npm install --include=dev 2>&1 | tail -3
+            [ -e node_modules/.bin/vite ] || npm install --no-save vite@5.4.21 2>&1 | tail -3
+          fi
+          echo "最终: vite包=$([ -d node_modules/vite ] && echo 有 || echo 无) bin=$([ -e node_modules/.bin/vite ] && echo 有 || echo 无)"
+          ls node_modules/.bin 2>/dev/null | head -8
+          test -e node_modules/.bin/vite
       - name: 构建（失败日志写入 annotation）
         run: |
           set +e
