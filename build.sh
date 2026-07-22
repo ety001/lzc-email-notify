@@ -14,9 +14,9 @@ mkdir -p "$OUT"
 echo "==> 构建前端"
 cd "$ROOT/frontend"
 if [ -f package-lock.json ]; then
-  npm ci
+  npm ci --include=dev
 else
-  npm install
+  npm install --include=dev
 fi
 npm run build
 cp -r "$ROOT/frontend/dist" "$OUT/dist"
