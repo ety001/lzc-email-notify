@@ -219,7 +219,7 @@ export default function AccountCard({ account, onEdit, onChanged }) {
             {account.enabled ? '已启用' : '已禁用'}
           </span>
         </div>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
           {account.web_url && (
             <Button
               variant="ghost"

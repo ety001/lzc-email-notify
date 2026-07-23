@@ -179,11 +179,32 @@ export default function SettingsPage() {
 
             {/* 通知设备选择 */}
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">通知设备</CardTitle>
-                <CardDescription>
-                  选择接收新邮件通知的客户端设备；全部打开表示向所有在线设备广播
-                </CardDescription>
+              <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-3">
+                <div>
+                  <CardTitle className="text-base">通知设备</CardTitle>
+                  <CardDescription>
+                    选择接收新邮件通知的客户端设备；全部打开表示向所有在线设备广播
+                  </CardDescription>
+                </div>
+                {devices.length > 0 && selected && (
+                  <label className="flex shrink-0 cursor-pointer select-none items-center gap-2 pt-1 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      checked={selected.size === devices.length}
+                      ref={(el) => {
+                        // 部分选中时显示半选状态
+                        if (el) el.indeterminate = selected.size > 0 && selected.size < devices.length
+                      }}
+                      onChange={() => {
+                        if (selected.size === devices.length) setSelected(new Set())
+                        else setSelected(new Set(devices.map((d) => d.id)))
+                      }}
+                      disabled={!!busy}
+                    />
+                    全选
+                  </label>
+                )}
               </CardHeader>
               <CardContent className="space-y-1">
                 {devices.length === 0 ? (
