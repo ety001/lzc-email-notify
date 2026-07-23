@@ -24,7 +24,7 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.1.1"
+const Version = "0.2.0"
 
 // Server 是 API 服务。
 type Server struct {
@@ -57,6 +57,11 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": Version})
 	})
 	root.Handle("/api/", authMiddleware(authed))
+	// Docker 镜像部署时由后端直接伺服前端产物（HashRouter，无需 SPA 回退）；
+	// STATIC_DIR 为空时（如 contentdir 部署）不注册，/ 由平台 file:// 路由处理。
+	if dir := os.Getenv("STATIC_DIR"); dir != "" {
+		root.Handle("/", http.FileServer(http.Dir(dir)))
+	}
 	return accessLogMiddleware(cleanPathMiddleware(root))
 }
 

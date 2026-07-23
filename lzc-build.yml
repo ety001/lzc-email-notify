@@ -1,4 +1,0 @@
-buildscript: ./build.sh
-contentdir: ./build-out
-pkgout: ./
-icon: ./icon.png

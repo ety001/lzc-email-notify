@@ -79,7 +79,7 @@ jobs:
           kill $SRV
 
   package:
-    name: 全量构建与 LPK 打包
+    name: 全量构建
     runs-on: ubuntu-latest
     needs: [frontend, backend]
     steps:
@@ -114,16 +114,5 @@ jobs:
           test -f build-out/dist/index.html
           file build-out/email-notify-server-amd64 | grep -i "statically linked"
           file build-out/email-notify-server-arm64 | grep -i "statically linked"
-      - name: 安装 lzc-cli 并打包 LPK
-        env:
-          BOX_NAME: ci
-          BOX_UID: ci
-        run: |
-          npm install -g @lazycatcloud/lzc-cli
-          lzc-cli project build -o email-notify.lpk
-          ls -la *.lpk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: email-notify-lpk
-          path: '*.lpk'
-          retention-days: 14
+      # LPK 打包配置已迁移至 lzc-appdb 仓库（lzc-email-notify/ 目录），
+      # 发布包在本地通过 lzc-cli project build 产出，CI 不再打包 LPK。

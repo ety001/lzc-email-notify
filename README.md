@@ -23,16 +23,17 @@
 ## 目录结构
 
 ```
-├── package.yml          # LPK v2 元数据
-├── lzc-manifest.yml     # 运行结构（路由/upstreams/background_task/health_check）
-├── lzc-build.yml        # release 构建配置
-├── lzc-build.dev.yml    # 开发态构建配置（独立 dev 包名）
-├── icon.png             # 应用图标
-├── build.sh             # 全量构建脚本（前端 + 后端 → build-out/）
+├── Dockerfile           # 全量镜像构建（前端 + 后端 + 运行时，单容器）
+├── .dockerignore
+├── build.sh             # 全量构建脚本（前端 + 后端 → build-out/，CI 校验用）
+├── start.sh             # contentdir 部署时代的启动脚本（已被 Docker 部署取代，保留兼容）
 ├── docs/api.md          # 前后端 API 契约
 ├── backend/             # Go 后端（cmd/server + internal/*）
 └── frontend/            # React 前端（Vite）
 ```
+
+> LPK 打包配置（`package.yml` / `lzc-manifest.yml` / `lzc-build*.yml` / `icon.png`）
+> 统一维护在 `lzc-appdb` 仓库的 `lzc-email-notify/` 目录下，不在本仓库。
 
 ## 本地开发
 
@@ -52,13 +53,17 @@ npm run dev
 
 ## 构建与部署到懒猫微服
 
+LPK 打包配置在 `lzc-appdb` 仓库的 `lzc-email-notify/` 目录（该目录下的
+`build.sh` 是包装脚本，会调用本仓库的 `build.sh` 再把产物复制过去）：
+
 ```bash
 npm install -g @lazycatcloud/lzc-cli
 lzc-cli box list && lzc-cli box switch <你的微服>
 
+cd ~/workspace/lzc-appdb/lzc-email-notify
 lzc-cli project deploy        # 开发态部署（读 lzc-build.dev.yml）
-lzc-cli project release -o email-notify.lpk   # 产出发布包（读 lzc-build.yml）
-lzc-cli lpk install ./email-notify.lpk        # 本机验证安装
+lzc-cli project build         # 产出发布包（读 lzc-build.yml）
+lzc-cli app install           # 安装到微服
 ```
 
 ## 说明
@@ -69,4 +74,4 @@ lzc-cli lpk install ./email-notify.lpk        # 本机验证安装
 
 ## CI
 
-`.github/workflows/build.yml`：前端构建 + 后端 vet/test/build + build.sh 全量构建 + LPK 打包验证。
+`.github/workflows/build.yml`：前端构建 + 后端 vet/test/build + build.sh 全量构建与产物校验（LPK 打包配置在 `lzc-appdb` 仓库，CI 不再打包 LPK）。
