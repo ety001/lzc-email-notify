@@ -115,9 +115,16 @@ func imapCtx(ctx context.Context, c *imapclient.Client) (context.Context, func()
 	done := make(chan struct{})
 	go func() {
 		select {
-		case <-cctx.Done():
-			c.Close()
 		case <-done:
+		case <-cctx.Done():
+			// stop() 先 close(done) 再 cancel()，看门狗可能在两者都就绪后
+			// 才被调度（select 随机选择），需二次确认：done 已关闭说明是
+			// 正常结束，不能误杀健康连接（否则下一阶段读写报 unexpected EOF）
+			select {
+			case <-done:
+			default:
+				c.Close()
+			}
 		}
 	}()
 	return cctx, func() bool {

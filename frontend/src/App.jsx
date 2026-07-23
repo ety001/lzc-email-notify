@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { MailWarning, RefreshCw, Plus, Inbox, AlertTriangle } from 'lucide-react'
+import { MailWarning, RefreshCw, Plus, Inbox, AlertTriangle, Bell } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { toast } from 'sonner'
 
@@ -22,7 +22,22 @@ export default function App() {
   const [editing, setEditing] = useState(null) // null=新增；Account=编辑
   const [backendError, setBackendError] = useState('') // 后端断连时的错误信息
   const [backendVersion, setBackendVersion] = useState('') // 后端版本号（来自 /api/health）
+  const [notifyTesting, setNotifyTesting] = useState(false) // 测试通知发送中
   const inFlight = useRef(false)
+
+  // 发送一条懒猫系统测试通知，验证通知通道是否正常
+  const sendTestNotify = async () => {
+    if (notifyTesting) return
+    setNotifyTesting(true)
+    try {
+      await api.testNotify()
+      toast.success('测试通知已发送，请留意懒猫客户端的系统通知')
+    } catch (err) {
+      toast.error(err.message || '测试通知发送失败')
+    } finally {
+      setNotifyTesting(false)
+    }
+  }
 
   // 获取后端版本（仅首次），用于核对前后端是否为同一发布包
   useEffect(() => {
@@ -86,6 +101,16 @@ export default function App() {
               定期检查邮箱，新邮件即时推送通知
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={sendTestNotify}
+            disabled={notifyTesting}
+            className="shrink-0"
+          >
+            <Bell />
+            <span className="hidden sm:inline">{notifyTesting ? '发送中…' : '测试通知'}</span>
+          </Button>
           <Button
             variant="outline"
             size="sm"

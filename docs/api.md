@@ -81,6 +81,7 @@
 | POST | `/api/test-connection` | 用**未保存的**表单内容测试连接（添加/编辑对话框内使用，不落库；protocol/host/port/username/password 必填，name 不要求） | 连接字段子集 | `{"ok":true}` 或 `{"ok":false,"error":"..."}`（HTTP 均为 200） |
 | POST | `/api/accounts/{id}/check` | 立即触发一次巡检（异步执行） | - | `{"ok":true}` |
 | GET | `/api/events?limit=50` | 最近事件，按时间倒序 | - | `Event[]`（空时为 `[]`） |
+| POST | `/api/notify/test` | 向当前用户全部在线设备发送一条懒猫系统测试通知（前端「测试通知」按钮） | - | `{"ok":true}`；失败返回 502 `{"error":"..."}` |
 
 其他规则：
 

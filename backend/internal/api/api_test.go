@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +12,7 @@ import (
 
 	"github.com/ety001/lzc-email-notify/backend/internal/account"
 	"github.com/ety001/lzc-email-notify/backend/internal/events"
+	"github.com/ety001/lzc-email-notify/backend/internal/notify"
 )
 
 type fakeSyncer struct {
@@ -20,6 +23,16 @@ type fakeSyncer struct {
 func (f *fakeSyncer) Sync()             { f.syncs++ }
 func (f *fakeSyncer) Trigger(id string) { f.triggers = append(f.triggers, id) }
 
+type fakeSender struct {
+	sent []notify.Payload
+	err  error
+}
+
+func (f *fakeSender) Send(_ context.Context, _ string, p notify.Payload) error {
+	f.sent = append(f.sent, p)
+	return f.err
+}
+
 func newTestServer(t *testing.T) (*Server, http.Handler, *fakeSyncer) {
 	t.Helper()
 	t.Setenv("DEV_NOAUTH", "1")
@@ -28,7 +41,7 @@ func newTestServer(t *testing.T) (*Server, http.Handler, *fakeSyncer) {
 		t.Fatal(err)
 	}
 	fs := &fakeSyncer{}
-	s := New(store, events.New(), fs)
+	s := New(store, events.New(), fs, &fakeSender{})
 	return s, s.Handler(), fs
 }
 
@@ -75,10 +88,33 @@ func TestHealthNoAuth(t *testing.T) {
 	}
 }
 
+func TestNotifyTest(t *testing.T) {
+	t.Setenv("DEV_NOAUTH", "1")
+	store, _ := account.Open(t.TempDir())
+	fs := &fakeSender{}
+	s := New(store, events.New(), &fakeSyncer{}, fs)
+	h := s.Handler()
+
+	rec, body := do(t, h, "POST", "/api/notify/test", nil, nil)
+	if rec.Code != 200 || body["ok"] != true {
+		t.Fatalf("expected ok, got %d %v", rec.Code, body)
+	}
+	if len(fs.sent) != 1 || fs.sent[0].Title == "" || fs.sent[0].Body == "" {
+		t.Fatalf("expected 1 non-empty notification, got %+v", fs.sent)
+	}
+
+	// 发送失败应返回 502 与错误信息
+	fs.err = errors.New("boom")
+	rec, body = do(t, h, "POST", "/api/notify/test", nil, nil)
+	if rec.Code != http.StatusBadGateway || body["error"] == nil {
+		t.Fatalf("expected 502, got %d %v", rec.Code, body)
+	}
+}
+
 func TestAuthRequired(t *testing.T) {
 	t.Setenv("DEV_NOAUTH", "")
 	store, _ := account.Open(t.TempDir())
-	s := New(store, events.New(), &fakeSyncer{})
+	s := New(store, events.New(), &fakeSyncer{}, &fakeSender{})
 	h := s.Handler()
 	rec, body := do(t, h, "GET", "/api/accounts", nil, nil)
 	if rec.Code != http.StatusUnauthorized {

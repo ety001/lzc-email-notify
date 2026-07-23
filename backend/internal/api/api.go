@@ -15,6 +15,7 @@ import (
 	"github.com/ety001/lzc-email-notify/backend/internal/account"
 	"github.com/ety001/lzc-email-notify/backend/internal/events"
 	"github.com/ety001/lzc-email-notify/backend/internal/mailcheck"
+	"github.com/ety001/lzc-email-notify/backend/internal/notify"
 )
 
 // Syncer 抽象轮询管理器，便于测试替换。
@@ -24,18 +25,19 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.2.0"
+const Version = "0.2.1"
 
 // Server 是 API 服务。
 type Server struct {
 	store  *account.Store
 	events *events.Buffer
 	poller Syncer
+	sender notify.Sender
 }
 
 // New 创建 API 服务。
-func New(store *account.Store, ev *events.Buffer, p Syncer) *Server {
-	return &Server{store: store, events: ev, poller: p}
+func New(store *account.Store, ev *events.Buffer, p Syncer, sender notify.Sender) *Server {
+	return &Server{store: store, events: ev, poller: p, sender: sender}
 }
 
 type ctxKeyUID struct{}
@@ -51,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	authed.HandleFunc("POST /api/test-connection", s.testConnection)
 	authed.HandleFunc("POST /api/accounts/{id}/check", s.checkAccount)
 	authed.HandleFunc("GET /api/events", s.listEvents)
+	authed.HandleFunc("POST /api/notify/test", s.testNotify)
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -348,4 +351,20 @@ func (s *Server) listEvents(w http.ResponseWriter, r *http.Request) {
 		limit = events.MaxLimit
 	}
 	writeJSON(w, http.StatusOK, s.events.List(uidOf(r), limit))
+}
+
+// testNotify 向当前登录用户的全部在线设备发送一条测试通知，
+// 用于在 UI 上验证懒猫系统通知通道是否正常。
+func (s *Server) testNotify(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	err := s.sender.Send(ctx, uidOf(r), notify.Payload{
+		Title: "邮件提醒器",
+		Body:  "这是一条测试通知，说明懒猫系统通知通道工作正常",
+	})
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "测试通知发送失败: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

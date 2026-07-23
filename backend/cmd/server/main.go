@@ -48,7 +48,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              listenAddr,
-		Handler:           api.New(store, ev, pm).Handler(),
+		Handler:           api.New(store, ev, pm, sender).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
