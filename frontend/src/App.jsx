@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { MailWarning, RefreshCw, Plus, Inbox } from 'lucide-react'
+import { MailWarning, RefreshCw, Plus, Inbox, AlertTriangle } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { toast } from 'sonner'
 
@@ -20,6 +20,7 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null) // null=新增；Account=编辑
+  const [backendError, setBackendError] = useState('') // 后端断连时的错误信息
   const inFlight = useRef(false)
 
   const refresh = useCallback(async ({ silent = false } = {}) => {
@@ -33,8 +34,10 @@ export default function App() {
       ])
       setAccounts(Array.isArray(accs) ? accs : [])
       setEvents(Array.isArray(evs) ? evs : [])
+      setBackendError('')
     } catch (err) {
       if (!silent) toast.error(err.message || '加载失败')
+      setBackendError(err.message || '加载失败')
       // 首次加载失败也置为空数组，避免永久骨架屏
       setAccounts((prev) => (prev === null ? [] : prev))
       setEvents((prev) => (prev === null ? [] : prev))
@@ -89,6 +92,18 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {/* 后端断连提示横幅：所有保存/测试操作依赖后端服务，异常时明确告知 */}
+        {backendError && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <p className="font-medium">无法连接后端服务：{backendError}</p>
+              <p className="mt-0.5 text-red-700/80">
+                账号的保存、测试与巡检都依赖后端服务，请稍等片刻后点击右上角「刷新」重试；若持续出现请重启应用。
+              </p>
+            </div>
+          </div>
+        )}
         <Routes>
           <Route
             path="/"

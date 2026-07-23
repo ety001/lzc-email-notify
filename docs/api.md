@@ -8,6 +8,7 @@
 - 平台 lzc-ingress 会注入 `X-HC-User-ID` 请求头，后端直接信任它作为用户 uid；数据按 uid 隔离
 - 错误响应统一为：`{"error": "人类可读的中文错误信息"}`，HTTP 状态码 4xx/5xx
 - 成功响应不包裹额外 envelope，直接返回数据本体
+- 后端在路由前将以多个斜杠开头的路径归一化（`//api/...` → `/api/...`），**不返回 301 重定向**——防止网关转出双斜杠路径时，浏览器跟随重定向把 POST 变 GET 导致创建请求被吞
 
 ## 数据模型
 
@@ -76,7 +77,8 @@
 | POST | `/api/accounts` | 新建账号 | Account（无 id/status/created_at/updated_at；含 `password` 明文） | 创建后的 Account |
 | PUT | `/api/accounts/{id}` | 更新账号 | Account（`password` 为空字符串表示**不修改**原密码） | 更新后的 Account |
 | DELETE | `/api/accounts/{id}` | 删除账号 | - | `{"ok":true}` |
-| POST | `/api/accounts/{id}/test` | 测试连接（拨号+登录+列邮箱，不改动巡检状态） | - | `{"ok":true}` 或 `{"ok":false,"error":"..."}`（HTTP 均为 200） |
+| POST | `/api/accounts/{id}/test` | 测试连接（用已保存的配置拨号+登录+列邮箱，不改动巡检状态） | - | `{"ok":true}` 或 `{"ok":false,"error":"..."}`（HTTP 均为 200） |
+| POST | `/api/test-connection` | 用**未保存的**表单内容测试连接（添加/编辑对话框内使用，不落库；protocol/host/port/username/password 必填，name 不要求） | 连接字段子集 | `{"ok":true}` 或 `{"ok":false,"error":"..."}`（HTTP 均为 200） |
 | POST | `/api/accounts/{id}/check` | 立即触发一次巡检（异步执行） | - | `{"ok":true}` |
 | GET | `/api/events?limit=50` | 最近事件，按时间倒序 | - | `Event[]`（空时为 `[]`） |
 

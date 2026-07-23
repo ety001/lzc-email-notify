@@ -33,9 +33,12 @@ else
 fi
 cp -r "$ROOT/frontend/dist" "$OUT/dist"
 
-echo "==> 构建后端"
+echo "==> 构建后端（amd64 + arm64 双架构）"
 cd "$ROOT/backend"
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$OUT/email-notify-server" ./cmd/server
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "$OUT/email-notify-server-amd64" ./cmd/server
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o "$OUT/email-notify-server-arm64" ./cmd/server
+cp "$ROOT/start.sh" "$OUT/start.sh"
+chmod +x "$OUT/start.sh"
 
 echo "==> 完成: $OUT"
 ls -la "$OUT"

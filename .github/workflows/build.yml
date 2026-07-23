@@ -108,9 +108,12 @@ jobs:
           fi
       - name: 校验 contentdir 产物
         run: |
-          test -f build-out/email-notify-server
+          test -f build-out/email-notify-server-amd64
+          test -f build-out/email-notify-server-arm64
+          test -x build-out/start.sh
           test -f build-out/dist/index.html
-          file build-out/email-notify-server | grep -i "statically linked"
+          file build-out/email-notify-server-amd64 | grep -i "statically linked"
+          file build-out/email-notify-server-arm64 | grep -i "statically linked"
       - name: 安装 lzc-cli 并打包 LPK
         env:
           BOX_NAME: ci

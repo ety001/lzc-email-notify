@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2, PlugZap, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { api } from '@/lib/api'
@@ -59,18 +59,26 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null) // {ok:true} | {ok:false,error:string} | null
 
   useEffect(() => {
     if (open) {
       setForm(account ? accountToForm(account) : EMPTY_FORM)
       setErrors({})
       setSubmitting(false)
+      setTesting(false)
+      setTestResult(null)
     }
   }, [open, account])
 
   const set = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }))
     setErrors((e) => ({ ...e, [key]: undefined }))
+    // 连接参数变了，上次的测试结果即失效
+    if (['protocol', 'host', 'port', 'ssl', 'username', 'password'].includes(key)) {
+      setTestResult(null)
+    }
   }
 
   const applyPreset = (presetKey, protocol, base = null) => {
@@ -87,6 +95,7 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
       return next
     })
     setErrors((e) => ({ ...e, host: undefined, port: undefined }))
+    setTestResult(null)
   }
 
   const handlePresetChange = (presetKey) => {
@@ -135,6 +144,42 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
     }
     setErrors(errs)
     return Object.keys(errs).length === 0
+  }
+
+  // 测试连接：独立异步进行，不阻塞保存；编辑模式且未填新密码时测已保存的配置
+  const handleTest = async () => {
+    if (testing) return
+    const useSaved = isEdit && !form.password
+    if (!useSaved && !form.password) {
+      setTestResult({ ok: false, error: '请先填写密码/授权码' })
+      return
+    }
+    if (!form.host.trim() || !form.username.trim()) {
+      setTestResult({ ok: false, error: '请先填写服务器与用户名' })
+      return
+    }
+    setTesting(true)
+    setTestResult(null)
+    try {
+      let res
+      if (useSaved) {
+        res = await api.testAccount(account.id)
+      } else {
+        res = await api.testConnection({
+          protocol: form.protocol,
+          host: form.host.trim(),
+          port: Number(form.port),
+          ssl: !!form.ssl,
+          username: form.username.trim(),
+          password: form.password,
+        })
+      }
+      setTestResult(res && res.ok ? { ok: true } : { ok: false, error: (res && res.error) || '连接失败' })
+    } catch (err) {
+      setTestResult({ ok: false, error: err.message || '连接测试失败' })
+    } finally {
+      setTesting(false)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -327,19 +372,53 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
             </div>
           </div>
 
-          <DialogFooter className="gap-2 pt-2">
+          {/* 测试连接结果（内联展示，与保存互不影响） */}
+          {testResult && (
+            <div
+              className={`flex items-start gap-2 rounded-md px-3 py-2 text-sm ${
+                testResult.ok
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-red-50 text-red-700'
+              }`}
+            >
+              {testResult.ok ? (
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              ) : (
+                <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              )}
+              <span className="min-w-0 break-all">
+                {testResult.ok
+                  ? `连接成功${isEdit && !form.password ? '（使用已保存的密码）' : ''}，服务器与账号验证通过`
+                  : testResult.error}
+              </span>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 pt-2 sm:justify-between">
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
+              onClick={handleTest}
+              disabled={testing}
+              title="使用当前填写的信息测试连接，不影响保存"
             >
-              取消
+              {testing ? <Loader2 className="animate-spin" /> : <PlugZap />}
+              {testing ? '测试中…' : '测试连接'}
             </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting && <Loader2 className="animate-spin" />}
-              {isEdit ? '保存修改' : '添加邮箱'}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting}
+              >
+                取消
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting && <Loader2 className="animate-spin" />}
+                {isEdit ? '保存修改' : '添加邮箱'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

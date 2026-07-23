@@ -7,7 +7,7 @@ application:
   upstreams:
     - location: /api
       backend: http://127.0.0.1:8000/
-      backend_launch_command: /lzcapp/pkg/content/email-notify-server
+      backend_launch_command: /lzcapp/pkg/content/start.sh
       # 保留 /api 前缀，前后端共用一套路径
       disable_trim_location: true
   environment:

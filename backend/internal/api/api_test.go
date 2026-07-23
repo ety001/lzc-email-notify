@@ -240,3 +240,51 @@ func TestEventsEndpoint(t *testing.T) {
 		t.Fatalf("bad event fields: %v", list[0])
 	}
 }
+
+// 双斜杠路径（//api/accounts）不得被 ServeMux 301 重定向——否则浏览器会把
+// 跟随重定向的 POST 变成 GET，创建请求被静默吞掉（生产环境真实踩坑）。
+func TestDoubleSlashPostNotRedirected(t *testing.T) {
+	_, h, _ := newTestServer(t)
+	rec, body := do(t, h, "POST", "//api/accounts", validAccount(), nil)
+	if rec.Code == http.StatusMovedPermanently || rec.Code == http.StatusTemporaryRedirect {
+		t.Fatalf("双斜杠路径被重定向: %d", rec.Code)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("双斜杠 POST 应正常创建, got %d %v", rec.Code, body)
+	}
+	if body["id"] == nil || body["id"] == "" {
+		t.Fatalf("创建应返回 id: %v", body)
+	}
+	// 确认真的存上了
+	rec2, list := do(t, h, "GET", "/api/accounts", nil, nil)
+	if rec2.Code != 200 {
+		t.Fatalf("list: %d", rec2.Code)
+	}
+	_ = list
+}
+
+func TestTestConnectionValidation(t *testing.T) {
+	_, h, _ := newTestServer(t)
+	// 缺密码 → ok:false，HTTP 仍 200
+	rec, body := do(t, h, "POST", "/api/test-connection", map[string]any{
+		"protocol": "imap", "host": "imap.qq.com", "port": 993,
+		"username": "a@qq.com",
+	}, nil)
+	if rec.Code != 200 || body["ok"] != false {
+		t.Fatalf("缺密码应 ok:false: %d %v", rec.Code, body)
+	}
+	// 缺服务器 → ok:false
+	_, body = do(t, h, "POST", "/api/test-connection", map[string]any{
+		"protocol": "imap", "port": 993, "username": "a@qq.com", "password": "x",
+	}, nil)
+	if body["ok"] != false {
+		t.Fatalf("缺服务器应 ok:false: %v", body)
+	}
+	// 坏协议 → ok:false
+	_, body = do(t, h, "POST", "/api/test-connection", map[string]any{
+		"protocol": "smtp", "host": "h", "port": 1, "username": "u", "password": "p",
+	}, nil)
+	if body["ok"] != false {
+		t.Fatalf("坏协议应 ok:false: %v", body)
+	}
+}

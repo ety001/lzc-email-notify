@@ -39,10 +39,24 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const api = {
   listAccounts: () => request('/accounts'),
-  createAccount: (payload) => request('/accounts', { method: 'POST', body: payload }),
-  updateAccount: (id, payload) => request(`/accounts/${id}`, { method: 'PUT', body: payload }),
+  createAccount: async (payload) => {
+    const data = await request('/accounts', { method: 'POST', body: payload })
+    // 响应必须是带 id 的账号对象，否则说明请求被网关/重定向吞掉，宁可报错也不假成功
+    if (!data || typeof data.id !== 'string' || !data.id) {
+      throw new Error('保存响应异常（请求可能被重定向），请刷新后重试')
+    }
+    return data
+  },
+  updateAccount: async (id, payload) => {
+    const data = await request(`/accounts/${id}`, { method: 'PUT', body: payload })
+    if (!data || typeof data.id !== 'string' || !data.id) {
+      throw new Error('保存响应异常（请求可能被重定向），请刷新后重试')
+    }
+    return data
+  },
   deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
   testAccount: (id) => request(`/accounts/${id}/test`, { method: 'POST' }),
+  testConnection: (payload) => request('/test-connection', { method: 'POST', body: payload }),
   checkAccount: (id) => request(`/accounts/${id}/check`, { method: 'POST' }),
   listEvents: (limit = 50) => request(`/events?limit=${limit}`),
 }

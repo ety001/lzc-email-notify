@@ -44,6 +44,7 @@ func (s *Server) Handler() http.Handler {
 	authed.HandleFunc("PUT /api/accounts/{id}", s.updateAccount)
 	authed.HandleFunc("DELETE /api/accounts/{id}", s.deleteAccount)
 	authed.HandleFunc("POST /api/accounts/{id}/test", s.testAccount)
+	authed.HandleFunc("POST /api/test-connection", s.testConnection)
 	authed.HandleFunc("POST /api/accounts/{id}/check", s.checkAccount)
 	authed.HandleFunc("GET /api/events", s.listEvents)
 
@@ -52,7 +53,20 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 	})
 	root.Handle("/api/", authMiddleware(authed))
-	return root
+	return cleanPathMiddleware(root)
+}
+
+// cleanPathMiddleware 把连续多个斜杠开头的路径（如 //api/accounts）归一化。
+// 懒猫 ingress 在某些配置下可能转发出双斜杠路径；Go ServeMux 默认会对这种
+// 路径返回 301 重定向，浏览器跟随重定向时会把 POST 变成 GET，导致创建类
+// 请求被静默吞掉。在 mux 之前归一化可避免该问题。
+func cleanPathMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p := r.URL.Path; len(p) > 1 && p[0] == '/' && p[1] == '/' {
+			r.URL.Path = "/" + strings.TrimLeft(p, "/")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // authMiddleware 校验 X-HC-User-ID；缺失时 DEV_NOAUTH=1 回落 dev-user，否则 401。
@@ -215,6 +229,50 @@ func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	s.poller.Sync()
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// testConnection 用请求体中（未保存的）账号信息做连接测试，不落库。
+// 与 testAccount 的区别：面向「添加/编辑对话框里还没保存的配置」。
+func (s *Server) testConnection(w http.ResponseWriter, r *http.Request) {
+	var req accountRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "请求体不是有效的 JSON")
+		return
+	}
+	// 连接测试只关心连通性字段，不要求名称
+	if req.Protocol != account.ProtocolIMAP && req.Protocol != account.ProtocolPOP3 {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "协议仅支持 imap 或 pop3"})
+		return
+	}
+	if strings.TrimSpace(req.Host) == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "服务器地址不能为空"})
+		return
+	}
+	if req.Port < 1 || req.Port > 65535 {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "端口必须在 1-65535 之间"})
+		return
+	}
+	if strings.TrimSpace(req.Username) == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "用户名不能为空"})
+		return
+	}
+	if req.Password == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "密码/授权码不能为空"})
+		return
+	}
+	acc := &account.Account{
+		Protocol: req.Protocol,
+		Host:     strings.TrimSpace(req.Host),
+		Port:     req.Port,
+		SSL:      req.SSL,
+		Username: strings.TrimSpace(req.Username),
+		Password: req.Password,
+	}
+	if err := mailcheck.Test(r.Context(), acc); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) testAccount(w http.ResponseWriter, r *http.Request) {
