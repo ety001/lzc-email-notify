@@ -207,7 +207,7 @@ export default function AccountCard({ account, onEdit, onChanged }) {
         )}
       </CardContent>
 
-      <CardFooter className="flex-wrap items-center gap-2 border-t pt-3">
+      <CardFooter className="flex-col items-stretch gap-3 border-t pt-3">
         <div className="flex items-center gap-2">
           <Switch
             checked={!!account.enabled}
@@ -219,17 +219,19 @@ export default function AccountCard({ account, onEdit, onChanged }) {
             {account.enabled ? '已启用' : '已禁用'}
           </span>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+        {/* 动作工具条：均分宽度、图标在上文字在下，窄卡片也不挤压 */}
+        <div className="flex items-stretch gap-1">
           {account.web_url && (
             <Button
               variant="ghost"
               size="sm"
               asChild
+              className="h-auto flex-1 flex-col gap-1 py-2"
               title="打开网页版邮箱（新标签页）"
             >
               <a href={account.web_url} target="_blank" rel="noopener noreferrer">
                 <ExternalLink />
-                <span className="hidden xl:inline">网页版</span>
+                <span className="text-xs">网页版</span>
               </a>
             </Button>
           )}
@@ -239,9 +241,10 @@ export default function AccountCard({ account, onEdit, onChanged }) {
             onClick={handleCheck}
             disabled={!!busy || !account.enabled}
             title="立即检查"
+            className="h-auto flex-1 flex-col gap-1 py-2"
           >
             {busy === 'check' ? <Loader2 className="animate-spin" /> : <Radar />}
-            <span className="hidden xl:inline">检查</span>
+            <span className="text-xs">检查</span>
           </Button>
           <Button
             variant="ghost"
@@ -249,23 +252,32 @@ export default function AccountCard({ account, onEdit, onChanged }) {
             onClick={handleTest}
             disabled={!!busy}
             title="测试连接"
+            className="h-auto flex-1 flex-col gap-1 py-2"
           >
             {busy === 'test' ? <Loader2 className="animate-spin" /> : <PlugZap />}
-            <span className="hidden xl:inline">测试</span>
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onEdit} disabled={!!busy} title="编辑">
-            <Pencil />
-            <span className="hidden xl:inline">编辑</span>
+            <span className="text-xs">测试</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="text-destructive hover:text-destructive"
+            onClick={onEdit}
+            disabled={!!busy}
+            title="编辑"
+            className="h-auto flex-1 flex-col gap-1 py-2"
+          >
+            <Pencil />
+            <span className="text-xs">编辑</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto flex-1 flex-col gap-1 py-2 text-destructive hover:text-destructive"
             onClick={() => setConfirmDelete(true)}
             disabled={!!busy}
             title="删除"
           >
             <Trash2 />
+            <span className="text-xs">删除</span>
           </Button>
         </div>
       </CardFooter>

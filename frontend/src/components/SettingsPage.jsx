@@ -187,23 +187,19 @@ export default function SettingsPage() {
                   </CardDescription>
                 </div>
                 {devices.length > 0 && selected && (
-                  <label className="flex shrink-0 cursor-pointer select-none items-center gap-2 pt-1 text-sm">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 accent-primary"
+                  // 与下方列表的 Switch 垂直对齐（列表行 px-2 → pr-2 补偿）
+                  <div className="shrink-0 pr-2 pt-1">
+                    <Switch
                       checked={selected.size === devices.length}
-                      ref={(el) => {
-                        // 部分选中时显示半选状态
-                        if (el) el.indeterminate = selected.size > 0 && selected.size < devices.length
-                      }}
-                      onChange={() => {
-                        if (selected.size === devices.length) setSelected(new Set())
-                        else setSelected(new Set(devices.map((d) => d.id)))
+                      onCheckedChange={(checked) => {
+                        if (checked) setSelected(new Set(devices.map((d) => d.id)))
+                        else setSelected(new Set())
                       }}
                       disabled={!!busy}
+                      aria-label="全选或全不选"
+                      title="全选 / 全不选"
                     />
-                    全选
-                  </label>
+                  </div>
                 )}
               </CardHeader>
               <CardContent className="space-y-1">
