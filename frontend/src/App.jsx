@@ -21,7 +21,15 @@ export default function App() {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null) // null=新增；Account=编辑
   const [backendError, setBackendError] = useState('') // 后端断连时的错误信息
+  const [backendVersion, setBackendVersion] = useState('') // 后端版本号（来自 /api/health）
   const inFlight = useRef(false)
+
+  // 获取后端版本（仅首次），用于核对前后端是否为同一发布包
+  useEffect(() => {
+    api.health()
+      .then((h) => setBackendVersion(h && h.version ? h.version : '未知'))
+      .catch(() => setBackendVersion(''))
+  }, [])
 
   const refresh = useCallback(async ({ silent = false } = {}) => {
     if (inFlight.current) return
@@ -90,6 +98,13 @@ export default function App() {
           </Button>
         </div>
       </header>
+
+      {/* 后端版本标识：核对前后端是否同一发布包；为空表示版本接口不可达（老版本后端） */}
+      <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6">
+        <p className="text-right text-xs text-muted-foreground/70">
+          {backendVersion ? `后端 v${backendVersion}` : '后端版本未知（可能为旧版）'}
+        </p>
+      </div>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         {/* 后端断连提示横幅：所有保存/测试操作依赖后端服务，异常时明确告知 */}

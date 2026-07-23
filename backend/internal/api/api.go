@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ety001/lzc-email-notify/backend/internal/account"
 	"github.com/ety001/lzc-email-notify/backend/internal/events"
@@ -21,6 +22,9 @@ type Syncer interface {
 	Sync()
 	Trigger(accountID string)
 }
+
+// Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
+const Version = "0.1.1"
 
 // Server 是 API 服务。
 type Server struct {
@@ -50,10 +54,32 @@ func (s *Server) Handler() http.Handler {
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "version": Version})
 	})
 	root.Handle("/api/", authMiddleware(authed))
-	return cleanPathMiddleware(root)
+	return accessLogMiddleware(cleanPathMiddleware(root))
+}
+
+// statusWriter 记录响应状态码，用于访问日志。
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// accessLogMiddleware 输出每个请求的访问日志（方法、原始 URI、状态码、耗时）。
+// 用于排查网关转发/重定向类问题：请求是否到达后端、以什么路径到达，一目了然。
+func accessLogMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sw, r)
+		log.Printf("[http] %s %s -> %d (%s)", r.Method, r.RequestURI, sw.status, time.Since(start).Round(time.Millisecond))
+	})
 }
 
 // cleanPathMiddleware 把连续多个斜杠开头的路径（如 //api/accounts）归一化。
@@ -128,10 +154,12 @@ func (s *Server) listAccounts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 	var req accountRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("[api] 创建账号请求体解析失败: %v", err)
 		writeError(w, http.StatusBadRequest, "请求体不是有效的 JSON")
 		return
 	}
 	if err := validate(&req, true); err != nil {
+		log.Printf("[api] 创建账号校验失败: %v", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -155,6 +183,7 @@ func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.poller.Sync()
+	log.Printf("[api] 账号已创建: id=%s name=%q protocol=%s host=%s:%d", created.ID, created.Name, created.Protocol, created.Host, created.Port)
 	writeJSON(w, http.StatusOK, created.ToView())
 }
 
@@ -269,9 +298,11 @@ func (s *Server) testConnection(w http.ResponseWriter, r *http.Request) {
 		Password: req.Password,
 	}
 	if err := mailcheck.Test(r.Context(), acc); err != nil {
+		log.Printf("[api] 测试连接失败: %s://%s@%s:%d ssl=%v: %v", acc.Protocol, acc.Username, acc.Host, acc.Port, acc.SSL, err)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
+	log.Printf("[api] 测试连接成功: %s://%s@%s:%d ssl=%v", acc.Protocol, acc.Username, acc.Host, acc.Port, acc.SSL)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 

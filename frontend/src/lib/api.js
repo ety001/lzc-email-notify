@@ -37,23 +37,29 @@ async function request(path, { method = 'GET', body } = {}) {
   return data
 }
 
+// 保存类响应必须是带 id 的账号对象，否则说明请求被网关/重定向吞掉。
+// 抛出错误时附上实际返回内容预览，便于定位问题发生在哪一层。
+function guardSavedResponse(data) {
+  if (!data || typeof data.id !== 'string' || !data.id) {
+    let preview
+    try {
+      preview = JSON.stringify(data)
+    } catch {
+      preview = String(data)
+    }
+    if (preview && preview.length > 120) preview = preview.slice(0, 120) + '…'
+    throw new Error(`保存响应异常，实际返回内容：${preview || '(空)'}`)
+  }
+  return data
+}
+
 export const api = {
+  health: () => request('/health'),
   listAccounts: () => request('/accounts'),
-  createAccount: async (payload) => {
-    const data = await request('/accounts', { method: 'POST', body: payload })
-    // 响应必须是带 id 的账号对象，否则说明请求被网关/重定向吞掉，宁可报错也不假成功
-    if (!data || typeof data.id !== 'string' || !data.id) {
-      throw new Error('保存响应异常（请求可能被重定向），请刷新后重试')
-    }
-    return data
-  },
-  updateAccount: async (id, payload) => {
-    const data = await request(`/accounts/${id}`, { method: 'PUT', body: payload })
-    if (!data || typeof data.id !== 'string' || !data.id) {
-      throw new Error('保存响应异常（请求可能被重定向），请刷新后重试')
-    }
-    return data
-  },
+  createAccount: async (payload) =>
+    guardSavedResponse(await request('/accounts', { method: 'POST', body: payload })),
+  updateAccount: async (id, payload) =>
+    guardSavedResponse(await request(`/accounts/${id}`, { method: 'PUT', body: payload })),
   deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
   testAccount: (id) => request(`/accounts/${id}/test`, { method: 'POST' }),
   testConnection: (payload) => request('/test-connection', { method: 'POST', body: payload }),

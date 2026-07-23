@@ -6,7 +6,8 @@ application:
     - /=file:///lzcapp/pkg/content/dist
   upstreams:
     - location: /api
-      backend: http://127.0.0.1:8000/
+      # 注意：URL 末尾不带斜杠，避免网关拼出 //api 双斜杠路径引发 301 重定向
+      backend: http://127.0.0.1:8000
       backend_launch_command: /lzcapp/pkg/content/start.sh
       # 保留 /api 前缀，前后端共用一套路径
       disable_trim_location: true

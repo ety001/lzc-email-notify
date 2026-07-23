@@ -25,6 +25,7 @@ func main() {
 	if listenAddr == "" {
 		listenAddr = "127.0.0.1:8000"
 	}
+	log.Printf("邮件提醒器后端版本 %s", api.Version)
 	configDir := os.Getenv("CONFIG_DIR")
 	if configDir == "" {
 		configDir = "./data"
