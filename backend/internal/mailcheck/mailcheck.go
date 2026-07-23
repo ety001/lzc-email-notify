@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
@@ -84,7 +85,12 @@ func addr(acc *account.Account) string {
 // ---------------------------------------------------------------------------
 
 func imapOptions() *imapclient.Options {
-	return &imapclient.Options{Dialer: &net.Dialer{Timeout: opTimeout}}
+	o := &imapclient.Options{Dialer: &net.Dialer{Timeout: opTimeout}}
+	// IMAP_DEBUG=1 时输出协议级交互日志，用于排查服务器兼容性问题
+	if os.Getenv("IMAP_DEBUG") == "1" {
+		o.DebugWriter = os.Stderr
+	}
+	return o
 }
 
 // dialIMAP 建立并返回 IMAP 连接。ssl=true 隐式 TLS；ssl=false 时先明文，
