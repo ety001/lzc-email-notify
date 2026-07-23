@@ -25,7 +25,7 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.2.1"
+const Version = "0.2.2"
 
 // Server 是 API 服务。
 type Server struct {

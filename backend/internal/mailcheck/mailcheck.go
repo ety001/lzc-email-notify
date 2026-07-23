@@ -168,7 +168,9 @@ func checkIMAP(ctx context.Context, acc *account.Account) (*Result, error) {
 		}
 		return nil, fmt.Errorf("查询邮箱状态失败: %w", err)
 	}
-	defer c.Logout().Wait()
+	// 注意：不能写 defer c.Logout().Wait()——defer 会立即对 c.Logout() 求值，
+	// 导致 LOGOUT 提前发出，后续 SELECT/FETCH 直接 unexpected EOF
+	defer func() { c.Logout().Wait() }()
 
 	var maxUID uint32
 	if status.UIDNext > 0 {
