@@ -189,7 +189,7 @@ export default function App() {
                 {/* 最近事件 */}
                 <aside className="min-w-0">
                   <h2 className="mb-4 text-base font-semibold">最近事件</h2>
-                  <EventList events={events} />
+                  <EventList events={events} accounts={accounts} />
                 </aside>
               </div>
             }

@@ -1,4 +1,5 @@
-import { Mail, BellOff, AlertTriangle, Info, ScrollText } from 'lucide-react'
+import { Mail, BellOff, AlertTriangle, Info, ScrollText, ExternalLink } from 'lucide-react'
+import { useMemo } from 'react'
 
 import { cn, relativeTime } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -39,7 +40,16 @@ function metaOf(kind) {
   return KIND_META[kind] || KIND_META.info
 }
 
-export default function EventList({ events }) {
+export default function EventList({ events, accounts }) {
+  // account_id -> 网页版邮箱地址，用于新邮件事件点击跳转
+  const webUrlByAccount = useMemo(() => {
+    const m = new Map()
+    for (const a of accounts || []) {
+      if (a.web_url) m.set(a.id, a.web_url)
+    }
+    return m
+  }, [accounts])
+
   if (events === null) {
     return (
       <div className="space-y-3">
@@ -67,8 +77,27 @@ export default function EventList({ events }) {
         {events.map((ev) => {
           const meta = metaOf(ev.kind)
           const Icon = meta.icon
+          // 邮件提醒类事件（新邮件/通知失败）配置了网页版地址时可点击跳转
+          const jumpUrl =
+            (ev.kind === 'new_mail' || ev.kind === 'notify_failed') &&
+            webUrlByAccount.get(ev.account_id)
+          const Tag = jumpUrl ? 'a' : 'div'
           return (
-            <div key={ev.id} className="flex items-start gap-3 px-4 py-3">
+            <Tag
+              key={ev.id}
+              {...(jumpUrl
+                ? {
+                    href: jumpUrl,
+                    target: '_blank',
+                    rel: 'noopener noreferrer',
+                    title: '点击打开网页版邮箱',
+                  }
+                : {})}
+              className={cn(
+                'flex items-start gap-3 px-4 py-3',
+                jumpUrl && 'cursor-pointer transition-colors hover:bg-muted/60'
+              )}
+            >
               <div
                 className={cn(
                   'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
@@ -98,7 +127,10 @@ export default function EventList({ events }) {
                   {ev.detail}
                 </p>
               </div>
-            </div>
+              {jumpUrl && (
+                <ExternalLink className="mt-1 h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+              )}
+            </Tag>
           )
         })}
       </CardContent>
