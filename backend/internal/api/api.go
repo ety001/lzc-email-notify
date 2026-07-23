@@ -25,7 +25,7 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.2.2"
+const Version = "0.3.0"
 
 // Server 是 API 服务。
 type Server struct {
@@ -54,6 +54,8 @@ func (s *Server) Handler() http.Handler {
 	authed.HandleFunc("POST /api/accounts/{id}/check", s.checkAccount)
 	authed.HandleFunc("GET /api/events", s.listEvents)
 	authed.HandleFunc("POST /api/notify/test", s.testNotify)
+	authed.HandleFunc("GET /api/settings", s.getSettings)
+	authed.HandleFunc("PUT /api/settings/notify-devices", s.updateNotifyDevices)
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -353,17 +355,84 @@ func (s *Server) listEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.events.List(uidOf(r), limit))
 }
 
-// testNotify 向当前登录用户的全部在线设备发送一条测试通知，
+// testNotify 向当前登录用户发送一条测试通知（遵循设置页的设备过滤），
 // 用于在 UI 上验证懒猫系统通知通道是否正常。
 func (s *Server) testNotify(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
-	err := s.sender.Send(ctx, uidOf(r), notify.Payload{
+	uid := uidOf(r)
+	p := notify.Payload{
 		Title: "邮件提醒器",
 		Body:  "这是一条测试通知，说明懒猫系统通知通道工作正常",
-	})
+	}
+	err := s.sendNotify(ctx, uid, p)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "测试通知发送失败: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// sendNotify 按用户设置（设备过滤）发送通知。
+func (s *Server) sendNotify(ctx context.Context, uid string, p notify.Payload) error {
+	if st := s.store.GetSettings(uid); st.DeviceFilterEnabled {
+		if dm, ok := s.sender.(notify.DeviceManager); ok {
+			return dm.SendToDevices(ctx, uid, st.NotifyDevices, p)
+		}
+	}
+	return s.sender.Send(ctx, uid, p)
+}
+
+// deviceManager 返回懒猫设备管理能力；非懒猫环境（LogSender）返回 false。
+func (s *Server) deviceManager() (notify.DeviceManager, bool) {
+	dm, ok := s.sender.(notify.DeviceManager)
+	return dm, ok
+}
+
+// getSettings 返回当前用户信息、可通知设备列表与已保存的设备选择。
+func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
+	uid := uidOf(r)
+	dm, ok := s.deviceManager()
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "当前环境不支持设备管理（非懒猫环境）")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	user, err := dm.QueryUser(ctx, uid)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	devices, err := dm.ListDevices(ctx, uid)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	if devices == nil {
+		devices = []notify.DeviceInfo{}
+	}
+	st := s.store.GetSettings(uid)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user":                    user,
+		"devices":                 devices,
+		"device_filter_enabled":   st.DeviceFilterEnabled,
+		"selected_notify_devices": st.NotifyDevices,
+	})
+}
+
+// updateNotifyDevices 保存当前用户的通知设备选择。
+func (s *Server) updateNotifyDevices(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Enabled bool     `json:"enabled"`
+		Devices []string `json:"devices"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "请求体不是合法 JSON")
+		return
+	}
+	if err := s.store.SetNotifyDevices(uidOf(r), req.Enabled, req.Devices); err != nil {
+		writeError(w, http.StatusInternalServerError, "保存设置失败: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

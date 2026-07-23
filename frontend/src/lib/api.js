@@ -65,5 +65,7 @@ export const api = {
   testConnection: (payload) => request('/test-connection', { method: 'POST', body: payload }),
   checkAccount: (id) => request(`/accounts/${id}/check`, { method: 'POST' }),
   testNotify: () => request('/notify/test', { method: 'POST' }),
+  getSettings: () => request('/settings'),
+  saveNotifyDevices: (payload) => request('/settings/notify-devices', { method: 'PUT', body: payload }),
   listEvents: (limit = 50) => request(`/events?limit=${limit}`),
 }

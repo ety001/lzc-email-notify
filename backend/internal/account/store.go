@@ -16,7 +16,8 @@ import (
 var ErrNotFound = errors.New("账号不存在")
 
 type fileFormat struct {
-	Accounts []*Account `json:"accounts"`
+	Accounts []*Account           `json:"accounts"`
+	Settings map[string]*Settings `json:"settings,omitempty"` // uid -> 设置
 }
 
 // Store 是基于单个 JSON 文件的账号存储，原子写、0600 权限，
@@ -25,6 +26,7 @@ type Store struct {
 	mu       sync.Mutex
 	path     string
 	accounts []*Account
+	settings map[string]*Settings
 }
 
 // Open 加载 dir 下的 config.json；目录不存在则创建，文件不存在视为空。
@@ -45,6 +47,7 @@ func Open(dir string) (*Store, error) {
 		return nil, fmt.Errorf("解析配置文件失败: %w", err)
 	}
 	s.accounts = f.Accounts
+	s.settings = f.Settings
 	return s, nil
 }
 
@@ -56,7 +59,7 @@ func (s *Store) Flush() error {
 }
 
 func (s *Store) saveLocked() error {
-	data, err := json.MarshalIndent(fileFormat{Accounts: s.accounts}, "", "  ")
+	data, err := json.MarshalIndent(fileFormat{Accounts: s.accounts, Settings: s.settings}, "", "  ")
 	if err != nil {
 		return err
 	}

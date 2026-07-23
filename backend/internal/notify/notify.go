@@ -19,6 +19,34 @@ type Sender interface {
 	Send(ctx context.Context, uid string, p Payload) error
 }
 
+// DeviceInfo 是一台可通知设备的概要。
+type DeviceInfo struct {
+	ID         string `json:"id"` // 懒猫 unique_deivce_id
+	Name       string `json:"name"`
+	RemarkName string `json:"remark_name"`
+	Model      string `json:"model"`
+	Online     bool   `json:"online"`
+	IsMobile   bool   `json:"is_mobile"`
+	IsTV       bool   `json:"is_tv"`
+}
+
+// UserInfo 是懒猫账号概要。
+type UserInfo struct {
+	UID      string `json:"uid"`
+	Nickname string `json:"nickname"`
+	Avatar   string `json:"avatar"`
+}
+
+// DeviceManager 是懒猫环境特有的能力：设备/用户查询与定向通知。
+// 非懒猫环境的回落实现（LogSender）不实现该接口，
+// 调用方通过类型断言判断能力是否可用。
+type DeviceManager interface {
+	ListDevices(ctx context.Context, uid string) ([]DeviceInfo, error)
+	QueryUser(ctx context.Context, uid string) (*UserInfo, error)
+	// SendToDevices 仅向 deviceIDs 列出的在线设备发送；空列表表示不发送。
+	SendToDevices(ctx context.Context, uid string, deviceIDs []string, p Payload) error
+}
+
 // LogSender 是回落实现：懒猫环境不可用时仅打日志。
 type LogSender struct{}
 

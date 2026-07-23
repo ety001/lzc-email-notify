@@ -33,6 +33,32 @@ func (f *fakeSender) Send(_ context.Context, _ string, p notify.Payload) error {
 	return f.err
 }
 
+// fakeDeviceManager 在 fakeSender 之上实现 notify.DeviceManager。
+type fakeDeviceManager struct {
+	fakeSender
+	devices   []notify.DeviceInfo
+	user      *notify.UserInfo
+	targeted  [][]string // 每次 SendToDevices 的 deviceIDs
+	targetErr error
+}
+
+func (f *fakeDeviceManager) ListDevices(_ context.Context, _ string) ([]notify.DeviceInfo, error) {
+	return f.devices, nil
+}
+
+func (f *fakeDeviceManager) QueryUser(_ context.Context, uid string) (*notify.UserInfo, error) {
+	if f.user != nil {
+		return f.user, nil
+	}
+	return &notify.UserInfo{UID: uid, Nickname: "测试用户"}, nil
+}
+
+func (f *fakeDeviceManager) SendToDevices(_ context.Context, _ string, ids []string, p notify.Payload) error {
+	f.targeted = append(f.targeted, ids)
+	f.sent = append(f.sent, p)
+	return f.targetErr
+}
+
 func newTestServer(t *testing.T) (*Server, http.Handler, *fakeSyncer) {
 	t.Helper()
 	t.Setenv("DEV_NOAUTH", "1")
@@ -108,6 +134,82 @@ func TestNotifyTest(t *testing.T) {
 	rec, body = do(t, h, "POST", "/api/notify/test", nil, nil)
 	if rec.Code != http.StatusBadGateway || body["error"] == nil {
 		t.Fatalf("expected 502, got %d %v", rec.Code, body)
+	}
+}
+
+func TestSettingsEndpoints(t *testing.T) {
+	t.Setenv("DEV_NOAUTH", "1")
+	store, _ := account.Open(t.TempDir())
+	fs := &fakeDeviceManager{
+		devices: []notify.DeviceInfo{
+			{ID: "dev-a", Name: "手机", Online: true, IsMobile: true},
+			{ID: "dev-b", Name: "电脑", Online: false},
+		},
+	}
+	s := New(store, events.New(), &fakeSyncer{}, fs)
+	h := s.Handler()
+
+	// 初始：未启用过滤，设备列表完整返回
+	rec, body := do(t, h, "GET", "/api/settings", nil, nil)
+	if rec.Code != 200 {
+		t.Fatalf("GET settings: %d %v", rec.Code, body)
+	}
+	if body["device_filter_enabled"] != false {
+		t.Fatalf("expected filter disabled initially: %v", body)
+	}
+	devs, _ := body["devices"].([]any)
+	if len(devs) != 2 {
+		t.Fatalf("expected 2 devices, got %v", body["devices"])
+	}
+	user, _ := body["user"].(map[string]any)
+	if user["uid"] != "dev-user" || user["nickname"] == "" {
+		t.Fatalf("bad user info: %v", user)
+	}
+
+	// 保存选择：只向 dev-a 发送
+	rec, body = do(t, h, "PUT", "/api/settings/notify-devices",
+		map[string]any{"enabled": true, "devices": []string{"dev-a"}}, nil)
+	if rec.Code != 200 || body["ok"] != true {
+		t.Fatalf("PUT notify-devices: %d %v", rec.Code, body)
+	}
+
+	// 读回：过滤已启用且选中 dev-a
+	rec, body = do(t, h, "GET", "/api/settings", nil, nil)
+	if body["device_filter_enabled"] != true {
+		t.Fatalf("expected filter enabled after PUT: %v", body)
+	}
+	sel, _ := body["selected_notify_devices"].([]any)
+	if len(sel) != 1 || sel[0] != "dev-a" {
+		t.Fatalf("bad selected devices: %v", body)
+	}
+
+	// 测试通知应走定向发送
+	rec, body = do(t, h, "POST", "/api/notify/test", nil, nil)
+	if rec.Code != 200 || body["ok"] != true {
+		t.Fatalf("POST notify/test: %d %v", rec.Code, body)
+	}
+	if len(fs.targeted) != 1 || len(fs.targeted[0]) != 1 || fs.targeted[0][0] != "dev-a" {
+		t.Fatalf("expected targeted send to [dev-a], got %v", fs.targeted)
+	}
+
+	// 关闭过滤后回到广播
+	rec, _ = do(t, h, "PUT", "/api/settings/notify-devices",
+		map[string]any{"enabled": false, "devices": []string{}}, nil)
+	if rec.Code != 200 {
+		t.Fatalf("PUT disable filter: %d", rec.Code)
+	}
+	rec, _ = do(t, h, "POST", "/api/notify/test", nil, nil)
+	if rec.Code != 200 || len(fs.targeted) != 1 {
+		t.Fatalf("expected broadcast send after disabling filter, targeted=%v", fs.targeted)
+	}
+}
+
+func TestSettingsUnavailableWithoutDeviceManager(t *testing.T) {
+	// LogSender 式的不具备设备管理能力的 sender：设置端点应返回 503
+	_, h, _ := newTestServer(t)
+	rec, body := do(t, h, "GET", "/api/settings", nil, nil)
+	if rec.Code != http.StatusServiceUnavailable || body["error"] == nil {
+		t.Fatalf("expected 503, got %d %v", rec.Code, body)
 	}
 }
 

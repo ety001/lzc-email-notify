@@ -81,7 +81,9 @@
 | POST | `/api/test-connection` | 用**未保存的**表单内容测试连接（添加/编辑对话框内使用，不落库；protocol/host/port/username/password 必填，name 不要求） | 连接字段子集 | `{"ok":true}` 或 `{"ok":false,"error":"..."}`（HTTP 均为 200） |
 | POST | `/api/accounts/{id}/check` | 立即触发一次巡检（异步执行） | - | `{"ok":true}` |
 | GET | `/api/events?limit=50` | 最近事件，按时间倒序 | - | `Event[]`（空时为 `[]`） |
-| POST | `/api/notify/test` | 向当前用户全部在线设备发送一条懒猫系统测试通知（前端「测试通知」按钮） | - | `{"ok":true}`；失败返回 502 `{"error":"..."}` |
+| POST | `/api/notify/test` | 向当前用户发送一条懒猫系统测试通知（遵循已保存的设备过滤） | - | `{"ok":true}`；失败返回 502 `{"error":"..."}` |
+| GET | `/api/settings` | 设置页数据：当前用户信息、名下设备列表、已保存的通知设备选择 | - | `{"user":{uid,nickname,avatar},"devices":[{id,name,remark_name,model,online,is_mobile,is_tv}],"device_filter_enabled":bool,"selected_notify_devices":[...]}`；非懒猫环境返回 503 |
+| PUT | `/api/settings/notify-devices` | 保存通知设备选择（`enabled:false` 表示向全部在线设备广播） | `{"enabled":bool,"devices":["device_id",...]}` | `{"ok":true}` |
 
 其他规则：
 

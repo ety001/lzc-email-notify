@@ -246,5 +246,11 @@ func (m *Manager) notifyNewMails(ctx context.Context, acc *account.Account, mail
 func (m *Manager) send(ctx context.Context, acc *account.Account, p notify.Payload) error {
 	sctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	// 用户在设置页勾选了设备过滤时，只向选中设备定向发送
+	if st := m.deps.Store.GetSettings(acc.UID); st.DeviceFilterEnabled {
+		if dm, ok := m.deps.Sender.(notify.DeviceManager); ok {
+			return dm.SendToDevices(sctx, acc.UID, st.NotifyDevices, p)
+		}
+	}
 	return m.deps.Sender.Send(sctx, acc.UID, p)
 }

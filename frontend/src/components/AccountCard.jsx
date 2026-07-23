@@ -7,6 +7,7 @@ import {
   Radar,
   Loader2,
   CircleAlert,
+  ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -175,10 +176,22 @@ export default function AccountCard({ account, onEdit, onChanged }) {
           </span>
         </div>
         {lastMail ? (
-          <div className="rounded-md bg-muted px-3 py-2">
+          // 配置了网页版地址时，点击最近邮件信息新开 tab 跳转到网页版邮箱
+          <a
+            href={account.web_url || undefined}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              'block rounded-md bg-muted px-3 py-2',
+              account.web_url && 'transition-colors hover:bg-accent'
+            )}
+            title={account.web_url ? '点击打开网页版邮箱' : undefined}
+            onClick={account.web_url ? undefined : (e) => e.preventDefault()}
+          >
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Mail className="h-3 w-3 shrink-0" />
               最近邮件
+              {account.web_url && <ExternalLink className="ml-auto h-3 w-3 shrink-0" />}
             </div>
             <p className="mt-0.5 truncate text-xs" title={lastMail.from}>
               {lastMail.from}
@@ -186,7 +199,7 @@ export default function AccountCard({ account, onEdit, onChanged }) {
             <p className="truncate text-xs font-medium" title={lastMail.subject}>
               {lastMail.subject}
             </p>
-          </div>
+          </a>
         ) : (
           <div className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
             暂无邮件记录
@@ -207,6 +220,19 @@ export default function AccountCard({ account, onEdit, onChanged }) {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-1">
+          {account.web_url && (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              title="打开网页版邮箱（新标签页）"
+            >
+              <a href={account.web_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink />
+                <span className="hidden xl:inline">网页版</span>
+              </a>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
