@@ -85,7 +85,7 @@ function StatusDot({ account }) {
   )
 }
 
-export default function AccountCard({ account, onEdit, onChanged }) {
+export default function AccountCard({ account, onEdit, onChanged, mailAlert, onOpenWebmail }) {
   const [busy, setBusy] = useState('') // 'toggle' | 'check' | 'test' | 'delete'
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -166,6 +166,26 @@ export default function AccountCard({ account, onEdit, onChanged }) {
       </CardHeader>
 
       <CardContent className="flex-1 space-y-2 pb-3 text-sm">
+        {/* 切回标签页后的 30 秒新邮件提醒：点击打开网页版邮箱并清除未读 */}
+        {mailAlert && (
+          <button
+            type="button"
+            onClick={onOpenWebmail}
+            className="flex w-full items-center gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-left transition-colors hover:bg-emerald-100"
+            title="点击打开网页版邮箱"
+          >
+            <Mail className="h-3.5 w-3.5 shrink-0 text-emerald-700" />
+            <span className="min-w-0 flex-1">
+              <span className="text-xs font-medium text-emerald-800">
+                收到 {mailAlert.count} 封新邮件
+              </span>
+              <span className="block truncate text-xs text-emerald-700/80">
+                {mailAlert.detail}
+              </span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-emerald-700/60" />
+          </button>
+        )}
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>最近检查</span>
           <span className="flex items-center gap-1">
@@ -186,7 +206,17 @@ export default function AccountCard({ account, onEdit, onChanged }) {
               account.web_url && 'transition-colors hover:bg-accent'
             )}
             title={account.web_url ? '点击打开网页版邮箱' : undefined}
-            onClick={account.web_url ? undefined : (e) => e.preventDefault()}
+            onClick={(e) => {
+              if (!account.web_url) {
+                e.preventDefault()
+                return
+              }
+              // 点击最近邮件区块 = 打开网页版 + 清除未读（走统一回调）
+              if (onOpenWebmail) {
+                e.preventDefault()
+                onOpenWebmail()
+              }
+            }}
           >
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Mail className="h-3 w-3 shrink-0" />

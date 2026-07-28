@@ -221,9 +221,12 @@ func (m *Manager) notifyNewMails(ctx context.Context, acc *account.Account, mail
 		rest = mails[maxIndividualNotify:]
 	}
 	title := fmt.Sprintf("【%s】新邮件", acc.Name)
+	// 点击通知跳转回本应用的 /open/<accountID> 路由，由前端决定打开哪个
+	// 网页版邮箱并清除该账号的未读提醒（而非直接跳外部网页邮箱）
+	deeplink := notify.OpenAppDeeplink("/#/open/" + acc.ID)
 	for _, mail := range individual {
 		body := mail.From + "\n" + mail.Subject
-		if err := m.send(ctx, acc, notify.Payload{Title: title, Body: body, DeeplinkURL: acc.WebURL}); err != nil {
+		if err := m.send(ctx, acc, notify.Payload{Title: title, Body: body, DeeplinkURL: deeplink}); err != nil {
 			m.deps.Events.Add(acc.UID, acc.ID, acc.Name, events.KindNotifyFailed,
 				fmt.Sprintf("通知发送失败: %v", err))
 			continue
@@ -234,7 +237,7 @@ func (m *Manager) notifyNewMails(ctx context.Context, acc *account.Account, mail
 	if len(rest) > 0 {
 		latest := rest[len(rest)-1]
 		body := fmt.Sprintf("共 %d 封新邮件，最新：%s - %s", len(rest), latest.From, latest.Subject)
-		if err := m.send(ctx, acc, notify.Payload{Title: title, Body: body, DeeplinkURL: acc.WebURL}); err != nil {
+		if err := m.send(ctx, acc, notify.Payload{Title: title, Body: body, DeeplinkURL: deeplink}); err != nil {
 			m.deps.Events.Add(acc.UID, acc.ID, acc.Name, events.KindNotifyFailed,
 				fmt.Sprintf("汇总通知发送失败: %v", err))
 			return

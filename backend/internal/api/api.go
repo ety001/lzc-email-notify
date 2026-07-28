@@ -25,7 +25,7 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.3.3"
+const Version = "0.4.0"
 
 // Server 是 API 服务。
 type Server struct {
@@ -364,6 +364,8 @@ func (s *Server) testNotify(w http.ResponseWriter, r *http.Request) {
 	p := notify.Payload{
 		Title: "邮件提醒器",
 		Body:  "这是一条测试通知，说明懒猫系统通知通道工作正常",
+		// 点击测试通知回到应用首页
+		DeeplinkURL: notify.OpenAppDeeplink("/"),
 	}
 	err := s.sendNotify(ctx, uid, p)
 	if err != nil {

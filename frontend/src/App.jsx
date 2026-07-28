@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { MailWarning, RefreshCw, Plus, Inbox, AlertTriangle, Settings } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { toast } from 'sonner'
 
 import { api } from '@/lib/api'
+import {
+  clearAccountUnread,
+  getClearedMap,
+  initUnreadBaseline,
+  isUnreadInitialized,
+} from '@/lib/unread'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
@@ -12,8 +18,11 @@ import AccountCard from '@/components/AccountCard'
 import AccountFormDialog from '@/components/AccountFormDialog'
 import EventList from '@/components/EventList'
 import SettingsPage from '@/components/SettingsPage'
+import OpenMail from '@/components/OpenMail'
 
 const POLL_INTERVAL = 10_000
+// 切回标签页时卡片内新邮件提醒的展示时长
+const ALERT_DURATION = 30_000
 
 export default function App() {
   const [accounts, setAccounts] = useState(null)
@@ -23,7 +32,10 @@ export default function App() {
   const [editing, setEditing] = useState(null) // null=新增；Account=编辑
   const [backendError, setBackendError] = useState('') // 后端断连时的错误信息
   const [backendVersion, setBackendVersion] = useState('') // 后端版本号（来自 /api/health）
+  const [unreadVersion, setUnreadVersion] = useState(0) // 未读清除动作计数（触发重算）
+  const [alertAccounts, setAlertAccounts] = useState(null) // 30 秒卡片内提醒的账号集合
   const inFlight = useRef(false)
+  const alertTimer = useRef(null)
   const navigate = useNavigate()
 
   // 获取后端版本（仅首次），用于核对前后端是否为同一发布包
@@ -62,6 +74,82 @@ export default function App() {
     const timer = setInterval(() => refresh({ silent: true }), POLL_INTERVAL)
     return () => clearInterval(timer)
   }, [refresh])
+
+  // 首次拿到事件列表时建立未读基线：历史事件不算未读
+  const unreadInitRef = useRef(false)
+  useEffect(() => {
+    if (unreadInitRef.current || events === null) return
+    unreadInitRef.current = true
+    if (!isUnreadInitialized()) {
+      initUnreadBaseline(events)
+      setUnreadVersion((v) => v + 1)
+    }
+  }, [events])
+
+  // 未读清除动作（本标签页自定义事件 / 其他标签页 storage 事件）后重算
+  useEffect(() => {
+    const bump = () => setUnreadVersion((v) => v + 1)
+    window.addEventListener('unread-changed', bump)
+    window.addEventListener('storage', bump)
+    return () => {
+      window.removeEventListener('unread-changed', bump)
+      window.removeEventListener('storage', bump)
+    }
+  }, [])
+
+  // 按账号聚合未读新邮件（事件按时间倒序，首个命中即最新一封）
+  const unreadByAccount = useMemo(() => {
+    if (!events) return {}
+    const cleared = getClearedMap()
+    const out = {}
+    for (const ev of events) {
+      if (ev.kind !== 'new_mail' || !ev.account_id) continue
+      if (ev.id <= (cleared[ev.account_id] || 0)) continue
+      if (!out[ev.account_id]) {
+        out[ev.account_id] = { count: 0, detail: ev.detail }
+      }
+      out[ev.account_id].count++
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, unreadVersion])
+
+  const unreadTotal = useMemo(
+    () => Object.values(unreadByAccount).reduce((n, u) => n + u.count, 0),
+    [unreadByAccount]
+  )
+
+  // 浏览器标题栏与 favicon 的未读标识（Chrome 固定标签页只显示 favicon）
+  useEffect(() => {
+    document.title = unreadTotal > 0 ? `【${unreadTotal} 封新邮件】邮件提醒器` : '邮件提醒器'
+    const link = document.getElementById('app-favicon')
+    if (link) link.href = unreadTotal > 0 ? '/favicon-unread.svg' : '/favicon.svg'
+  }, [unreadTotal])
+
+  // 用户从其他标签页切回时，在收到新邮件的账号卡片内展示 30 秒提醒
+  const unreadRef = useRef({ total: 0, byAccount: {} })
+  unreadRef.current = { total: unreadTotal, byAccount: unreadByAccount }
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const { total, byAccount } = unreadRef.current
+      if (total === 0) return
+      if (alertTimer.current) clearTimeout(alertTimer.current)
+      setAlertAccounts({ ...byAccount })
+      alertTimer.current = setTimeout(() => setAlertAccounts(null), ALERT_DURATION)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      if (alertTimer.current) clearTimeout(alertTimer.current)
+    }
+  }, [])
+
+  // 打开网页版邮箱并清除该账号未读（卡片提醒条 / 最近邮件区块点击）
+  const openWebmail = useCallback((account) => {
+    clearAccountUnread(account.id)
+    if (account.web_url) window.open(account.web_url, '_blank', 'noopener')
+  }, [])
 
   const openCreate = () => {
     setEditing(null)
@@ -178,6 +266,8 @@ export default function App() {
                         <AccountCard
                           key={acc.id}
                           account={acc}
+                          mailAlert={alertAccounts?.[acc.id] ? unreadByAccount[acc.id] : null}
+                          onOpenWebmail={() => openWebmail(acc)}
                           onEdit={() => openEdit(acc)}
                           onChanged={() => refresh({ silent: true })}
                         />
@@ -195,6 +285,7 @@ export default function App() {
             }
           />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/open/:accountId" element={<OpenMail />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
