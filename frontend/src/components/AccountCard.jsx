@@ -150,14 +150,21 @@ export default function AccountCard({ account, onEdit, onChanged, mailAlert, onO
   return (
     <Card className={cn('flex flex-col', !account.enabled && 'opacity-80')}>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <CardTitle className="truncate text-base">{account.name}</CardTitle>
-            <Badge variant="secondary" className="shrink-0 uppercase">
-              {account.protocol}
-            </Badge>
-          </div>
-          <StatusDot account={account} />
+        <div className="flex items-center gap-2">
+          <CardTitle className="min-w-0 truncate text-base">{account.name}</CardTitle>
+          <Badge variant="secondary" className="shrink-0 uppercase">
+            {account.protocol}
+          </Badge>
+          <Switch
+            checked={!!account.enabled}
+            disabled={!!busy}
+            onCheckedChange={handleToggle}
+            aria-label="启用或禁用"
+            className="shrink-0"
+          />
+          <span className="ml-auto shrink-0">
+            <StatusDot account={account} />
+          </span>
         </div>
         <p className="truncate text-xs text-muted-foreground">
           {account.host}:{account.port}
@@ -237,20 +244,9 @@ export default function AccountCard({ account, onEdit, onChanged, mailAlert, onO
         )}
       </CardContent>
 
-      <CardFooter className="flex-col items-stretch gap-3 border-t pt-3">
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={!!account.enabled}
-            disabled={!!busy}
-            onCheckedChange={handleToggle}
-            aria-label="启用或禁用"
-          />
-          <span className="text-xs text-muted-foreground">
-            {account.enabled ? '已启用' : '已禁用'}
-          </span>
-        </div>
+      <CardFooter className="border-t pt-3">
         {/* 动作工具条：均分宽度、图标在上文字在下，窄卡片也不挤压 */}
-        <div className="flex items-stretch gap-1">
+        <div className="flex w-full items-stretch gap-1">
           {account.web_url && (
             <Button
               variant="ghost"
