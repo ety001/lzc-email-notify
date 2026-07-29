@@ -149,14 +149,16 @@ export default function App() {
     }
   }, [])
 
-  // 按账号聚合未读新邮件（事件按时间倒序，首个命中即最新一封）
+  // 按账号聚合未读新邮件（事件按时间倒序，首个命中即最新一封；
+  // 用事件时间与清除时间比较，事件 ID 后端重启后会重置不可用于比较）
   const unreadByAccount = useMemo(() => {
     if (!events) return {}
     const cleared = getClearedMap()
     const out = {}
     for (const ev of events) {
       if (ev.kind !== 'new_mail' || !ev.account_id) continue
-      if (ev.id <= (cleared[ev.account_id] || 0)) continue
+      const t = new Date(ev.time).getTime() || 0
+      if (t <= (cleared[ev.account_id] || 0)) continue
       if (!out[ev.account_id]) {
         out[ev.account_id] = { count: 0, detail: ev.detail }
       }

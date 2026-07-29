@@ -1,14 +1,18 @@
 /**
  * 未读新邮件状态管理（localStorage 持久化，跨标签页同步）。
  *
- * 语义：每个账号记录一个"已清除到"的事件 ID（cleared map），
- * id 大于该值的 new_mail 事件即为未读。清除动作来自：
+ * 语义：每个账号记录一个"已清除到"的事件时间戳（毫秒），
+ * 事件时间晚于该值的 new_mail 事件即为未读。清除动作来自：
  *   - 点击懒猫系统通知（deeplink → /open/:accountId 路由）
  *   - 点击卡片内的新邮件提醒条 / 最近邮件区块
+ *
+ * 注意：必须用事件时间而不是事件 ID——事件 ID 是后端内存环形
+ * 缓冲里的序列号，应用重启/升级后从 1 重新计数，跨重启比较会失效
+ * （曾导致标题栏未读提醒在后端升级后静默失效）。
  */
 
-const KEY = 'email-notify:unread-cleared-v1'
-const INIT_KEY = 'email-notify:unread-init-v1'
+const KEY = 'email-notify:unread-cleared-v2'
+const INIT_KEY = 'email-notify:unread-init-v2'
 
 export function getClearedMap() {
   try {
@@ -24,10 +28,10 @@ function saveClearedMap(map) {
   window.dispatchEvent(new Event('unread-changed'))
 }
 
-/** 清除指定账号的未读（默认清除到当前已知的最大事件 ID） */
-export function clearAccountUnread(accountId, eventId = Number.MAX_SAFE_INTEGER) {
+/** 清除指定账号的未读（默认清除到当前时间） */
+export function clearAccountUnread(accountId, whenMs = Date.now()) {
   const map = getClearedMap()
-  map[accountId] = Math.max(map[accountId] || 0, eventId)
+  map[accountId] = Math.max(map[accountId] || 0, whenMs)
   saveClearedMap(map)
 }
 
@@ -40,7 +44,8 @@ export function initUnreadBaseline(events) {
   const map = getClearedMap()
   for (const ev of events || []) {
     if (ev.kind === 'new_mail' && ev.account_id) {
-      map[ev.account_id] = Math.max(map[ev.account_id] || 0, ev.id)
+      const t = new Date(ev.time).getTime() || 0
+      map[ev.account_id] = Math.max(map[ev.account_id] || 0, t)
     }
   }
   localStorage.setItem(KEY, JSON.stringify(map))
