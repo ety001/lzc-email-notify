@@ -2,17 +2,23 @@
 
 运行在懒猫微服（LazyCat Cloud / lzcos）上的邮箱新邮件提醒应用。
 
-通过 **IMAP / POP3** 定时巡检多个邮箱（最小检查间隔 1 分钟），发现新邮件时调用懒猫微服的客户端通知能力推送系统通知，**点击通知直接跳转到对应邮箱的网页版页面**。
+通过 **IMAP / POP3** 定时巡检多个邮箱（最小检查间隔 1 分钟），发现新邮件时调用懒猫微服的客户端通知能力推送系统通知，**点击通知经应用内路由跳转到对应邮箱的网页版页面并清除未读**。
 
 ## 功能
 
 - 多邮箱监控：支持同时配置多个 IMAP / POP3 邮箱
 - 检查间隔最小 1 分钟，每个账号独立轮询
-- 新邮件系统通知（标题为账号名，正文为发件人与主题），点击通知跳转该邮箱的 Web 版地址
+- 新邮件系统通知（标题为账号名，正文为发件人与主题），点击通知经应用内路由跳转该邮箱的网页版地址
+- 通知设备管理：设置页可查看当前账号信息、选择接收通知的客户端设备
+- 浏览器标题栏未读提醒与双 favicon（区分有无新邮件，覆盖固定标签页场景）
+- 切回标签页时账号卡片内 30 秒新邮件提醒
+- WebSocket 实时推送（断开自动回落轮询）
 - 首次巡检只建立基线，不会对历史邮件轰炸通知
-- 账号连接测试、手动立即检查、启用/禁用开关
-- 最近事件流（新邮件、通知失败、巡检失败等）
+- 账号连接测试、手动立即检查、启用/禁用开关、网页版邮箱跳转
+- 最近事件流（新邮件、通知失败、巡检失败等），事件可点击跳转网页版
 - 多用户隔离：按懒猫登录用户（X-HC-User-ID）隔离各自账号配置
+
+版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 技术栈
 
@@ -25,9 +31,10 @@
 ```
 ├── Dockerfile           # 全量镜像构建（前端 + 后端 + 运行时，单容器）
 ├── .dockerignore
+├── CHANGELOG.md         # 版本历史
 ├── build.sh             # 全量构建脚本（前端 + 后端 → build-out/，CI 校验用）
 ├── start.sh             # contentdir 部署时代的启动脚本（已被 Docker 部署取代，保留兼容）
-├── docs/api.md          # 前后端 API 契约
+├── docs/api.md          # 前后端 API 契约（含 WebSocket 推送协议）
 ├── backend/             # Go 后端（cmd/server + internal/*）
 └── frontend/            # React 前端（Vite）
 ```
@@ -53,17 +60,22 @@ npm run dev
 
 ## 构建与部署到懒猫微服
 
-LPK 打包配置在 `lzc-appdb` 仓库的 `lzc-email-notify/` 目录（该目录下的
-`build.sh` 是包装脚本，会调用本仓库的 `build.sh` 再把产物复制过去）：
+标准发版流程（Docker 镜像 + copy-image + LPK）：
 
 ```bash
-npm install -g @lazycatcloud/lzc-cli
-lzc-cli box list && lzc-cli box switch <你的微服>
+# 1. 本仓库：构建并推送 Docker 镜像（只 amd64，tag 带 commit id）
+commit_id=$(git rev-parse --short HEAD)
+docker buildx build --builder ssd-builder --platform linux/amd64 \
+  -t ety001/lzc-email-notify:latest-${commit_id} --push .
 
+# 2. 镜像复制到懒猫 registry，输出新镜像地址
+lzc-cli appstore copy-image ety001/lzc-email-notify:latest-${commit_id}
+
+# 3. 更新 lzc-appdb 仓库 lzc-email-notify/lzc-manifest.yml 的 image 字段，
+#    并同步 package.yml 版本号，然后构建安装
 cd ~/workspace/lzc-appdb/lzc-email-notify
-lzc-cli project deploy        # 开发态部署（读 lzc-build.dev.yml）
-lzc-cli project build         # 产出发布包（读 lzc-build.yml）
-lzc-cli app install           # 安装到微服
+lzc-cli project build
+lzc-cli app install
 ```
 
 ## 说明
