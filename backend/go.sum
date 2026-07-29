@@ -4,6 +4,8 @@ gitee.com/linakesi/lzc-sdk v0.1.1-0.20260720072851-56a9b456a673 h1:VKBNhdnszwc4T
 gitee.com/linakesi/lzc-sdk v0.1.1-0.20260720072851-56a9b456a673/go.mod h1:m3ZKtvNp/wTikT3eVu+QtNYxPXJu/RWpERafKC8is4I=
 gitee.com/linakesi/remotesocks v0.0.0-20250225034155-8709b247f245 h1:9lJkHVHHoOaikCSNvyK07T/Gq0zQL8KFCuWJEIC9tzU=
 gitee.com/linakesi/remotesocks v0.0.0-20250225034155-8709b247f245/go.mod h1:RkY5CQgpDuk6CEiJWbFEQ2JiyRfFgxiVRSWhjiVexEo=
+github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=
+github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/containerd/cgroups/v3 v3.0.5 h1:44na7Ud+VwyE7LIoJ8JTNQOa549a8543BmzaJHo6Bzo=
 github.com/containerd/cgroups/v3 v3.0.5/go.mod h1:SA5DLYnXO8pTGYiAHXz94qvLQTKfVM5GEVisn4jpins=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

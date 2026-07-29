@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	gitee.com/linakesi/lzc-sdk v0.1.1-0.20260720072851-56a9b456a673
+	github.com/coder/websocket v1.8.15
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	google.golang.org/grpc v1.63.2
 )

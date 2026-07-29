@@ -33,5 +33,9 @@ func (s *Store) SetNotifyDevices(uid string, enabled bool, ids []string) error {
 		DeviceFilterEnabled: enabled,
 		NotifyDevices:       append([]string(nil), ids...),
 	}
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		return err
+	}
+	s.triggerChange(uid)
+	return nil
 }

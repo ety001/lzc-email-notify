@@ -27,6 +27,27 @@ type Store struct {
 	path     string
 	accounts []*Account
 	settings map[string]*Settings
+	onChange func(uid string) // 数据变更回调（WebSocket 推送用），异步触发
+}
+
+// SetOnChange 设置数据变更回调；回调异步触发，不得假设时序。
+func (s *Store) SetOnChange(fn func(uid string)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onChange = fn
+}
+
+// triggerChange 在数据变更后异步触发回调。回调方通常会重新读取 Store，
+// 必须等当前写操作释放锁后执行，因此整体放进 goroutine。
+func (s *Store) triggerChange(uid string) {
+	go func() {
+		s.mu.Lock()
+		fn := s.onChange
+		s.mu.Unlock()
+		if fn != nil {
+			fn(uid)
+		}
+	}()
 }
 
 // Open 加载 dir 下的 config.json；目录不存在则创建，文件不存在视为空。
@@ -144,6 +165,7 @@ func (s *Store) Create(a *Account) (*Account, error) {
 	if err := s.saveLocked(); err != nil {
 		return nil, err
 	}
+	s.triggerChange(a.UID)
 	return a.Clone(), nil
 }
 
@@ -161,6 +183,7 @@ func (s *Store) Update(uid, id string, mutate func(a *Account) bool) (*Account, 
 			if err := s.saveLocked(); err != nil {
 				return nil, err
 			}
+			s.triggerChange(uid)
 			return a.Clone(), nil
 		}
 	}
@@ -180,6 +203,7 @@ func (s *Store) UpdateByID(id string, mutate func(a *Account) bool) (*Account, e
 			if err := s.saveLocked(); err != nil {
 				return nil, err
 			}
+			s.triggerChange(a.UID)
 			return a.Clone(), nil
 		}
 	}
@@ -193,7 +217,11 @@ func (s *Store) Delete(uid, id string) error {
 	for i, a := range s.accounts {
 		if a.ID == id && a.UID == uid {
 			s.accounts = append(s.accounts[:i], s.accounts[i+1:]...)
-			return s.saveLocked()
+			if err := s.saveLocked(); err != nil {
+				return err
+			}
+			s.triggerChange(uid)
+			return nil
 		}
 	}
 	return ErrNotFound

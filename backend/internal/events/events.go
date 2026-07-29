@@ -42,15 +42,22 @@ type Buffer struct {
 	head  int // 下一个写入位置
 	len   int
 	seq   int64
+	onAdd func(uid string) // 新增事件回调（WebSocket 推送用），异步调用
 }
 
 // New 创建事件缓冲。
 func New() *Buffer { return &Buffer{} }
 
+// SetOnAdd 设置新增事件回调；回调在锁外异步触发，不得假设时序。
+func (b *Buffer) SetOnAdd(fn func(uid string)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.onAdd = fn
+}
+
 // Add 追加一条事件。
 func (b *Buffer) Add(uid, accountID, accountName, kind, detail string) Event {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.seq++
 	e := Event{
 		ID:          b.seq,
@@ -65,6 +72,11 @@ func (b *Buffer) Add(uid, accountID, accountName, kind, detail string) Event {
 	b.head = (b.head + 1) % Capacity
 	if b.len < Capacity {
 		b.len++
+	}
+	onAdd := b.onAdd
+	b.mu.Unlock()
+	if onAdd != nil {
+		go onAdd(uid)
 	}
 	return e
 }

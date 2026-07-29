@@ -34,6 +34,7 @@ export default function App() {
   const [backendVersion, setBackendVersion] = useState('') // 后端版本号（来自 /api/health）
   const [unreadVersion, setUnreadVersion] = useState(0) // 未读清除动作计数（触发重算）
   const [alertAccounts, setAlertAccounts] = useState(null) // 30 秒卡片内提醒的账号集合
+  const [wsAlive, setWsAlive] = useState(false) // WebSocket 是否在线（在线时停用轮询）
   const inFlight = useRef(false)
   const alertTimer = useRef(null)
   const navigate = useNavigate()
@@ -69,11 +70,62 @@ export default function App() {
     }
   }, [])
 
+  // 首次加载用 REST 快速渲染首屏
   useEffect(() => {
     refresh()
+  }, [refresh])
+
+  // WebSocket 数据推送：在线时替代轮询，断开自动重连（指数退避）
+  useEffect(() => {
+    let ws = null
+    let closed = false
+    let retry = 0
+    let timer = null
+
+    const connect = () => {
+      if (closed) return
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+      ws = new WebSocket(`${proto}://${location.host}/api/ws`)
+      ws.onopen = () => {
+        retry = 0
+        setWsAlive(true)
+      }
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data)
+          if (msg.type === 'update') {
+            setAccounts(Array.isArray(msg.accounts) ? msg.accounts : [])
+            setEvents(Array.isArray(msg.events) ? msg.events : [])
+            setBackendError('')
+          }
+        } catch {
+          // 忽略无法解析的消息
+        }
+      }
+      ws.onclose = () => {
+        setWsAlive(false)
+        if (!closed) {
+          retry += 1
+          timer = setTimeout(connect, Math.min(30_000, 1000 * 2 ** Math.min(retry, 5)))
+        }
+      }
+      ws.onerror = () => ws.close()
+    }
+    connect()
+
+    return () => {
+      closed = true
+      if (timer) clearTimeout(timer)
+      if (ws) ws.close()
+    }
+  }, [])
+
+  // WS 断开期间回落到 10 秒轮询兜底
+  useEffect(() => {
+    if (wsAlive) return
     const timer = setInterval(() => refresh({ silent: true }), POLL_INTERVAL)
     return () => clearInterval(timer)
-  }, [refresh])
+  }, [wsAlive, refresh])
 
   // 首次拿到事件列表时建立未读基线：历史事件不算未读
   const unreadInitRef = useRef(false)

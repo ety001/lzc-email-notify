@@ -2,10 +2,12 @@
 package api
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -25,7 +27,7 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.4.1"
+const Version = "0.5.0"
 
 // Server 是 API 服务。
 type Server struct {
@@ -33,11 +35,16 @@ type Server struct {
 	events *events.Buffer
 	poller Syncer
 	sender notify.Sender
+	hub    *Hub
 }
 
-// New 创建 API 服务。
+// New 创建 API 服务；同时创建 WebSocket Hub 并挂上数据变更钩子。
 func New(store *account.Store, ev *events.Buffer, p Syncer, sender notify.Sender) *Server {
-	return &Server{store: store, events: ev, poller: p, sender: sender}
+	s := &Server{store: store, events: ev, poller: p, sender: sender}
+	s.hub = newHub(s)
+	store.SetOnChange(s.hub.NotifyChange)
+	ev.SetOnAdd(s.hub.NotifyChange)
+	return s
 }
 
 type ctxKeyUID struct{}
@@ -56,6 +63,7 @@ func (s *Server) Handler() http.Handler {
 	authed.HandleFunc("POST /api/notify/test", s.testNotify)
 	authed.HandleFunc("GET /api/settings", s.getSettings)
 	authed.HandleFunc("PUT /api/settings/notify-devices", s.updateNotifyDevices)
+	authed.Handle("GET /api/ws", s.hub)
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
@@ -79,6 +87,15 @@ type statusWriter struct {
 func (w *statusWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
+}
+
+// Hijack 透传底层连接的 Hijack 能力（WebSocket 升级需要）。
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("底层 ResponseWriter 不支持 Hijack")
+	}
+	return hj.Hijack()
 }
 
 // accessLogMiddleware 输出每个请求的访问日志（方法、原始 URI、状态码、耗时）。
