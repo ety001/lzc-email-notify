@@ -24,6 +24,7 @@
   "ssl": true,
   "username": "someone@qq.com",
   "has_password": true,
+  "proxy_url": "http://127.0.0.1:7890",
   "interval_sec": 60,
   "web_url": "https://mail.qq.com",
   "enabled": true,
@@ -50,6 +51,7 @@
 - `ssl`：true = 隐式 TLS（IMAP 993 / POP3 995）；false = 明文连接，IMAP 下若服务器支持则自动尝试 STARTTLS
 - `interval_sec`：轮询间隔秒数，**最小 60**，后端对小于 60 的值静默钳制为 60（<=0 或缺失时默认 60）
 - `web_url`：点击系统通知后跳转的网页版邮箱地址，允许为空（为空则通知不带 deeplink）
+- `proxy_url`：可选 HTTP 代理（`http://[user:pass@]host:port`，也支持 https 代理）。设置后该账号的 IMAP/POP3 查信流量经 HTTP CONNECT 隧道访问邮件服务器；为空则直连
 - `password`：**永不在任何 GET 响应中返回**；只有 `has_password` 布尔位
 - `status` 为只读运行时状态，POST/PUT 请求体中忽略该字段；`status.last_mail` 可为 `null`
 

@@ -114,6 +114,42 @@ func TestHealthNoAuth(t *testing.T) {
 	}
 }
 
+func TestAccountProxyURL(t *testing.T) {
+	_, h, _ := newTestServer(t)
+
+	// 非法代理地址应 400
+	bad := validAccount()
+	bad["proxy_url"] = "socks5://127.0.0.1:1080"
+	rec, body := do(t, h, "POST", "/api/accounts", bad, nil)
+	if rec.Code != 400 || body["error"] == nil {
+		t.Fatalf("expected 400 for bad proxy_url, got %d %v", rec.Code, body)
+	}
+
+	// 合法代理地址保存成功，视图回显
+	good := validAccount()
+	good["proxy_url"] = "http://127.0.0.1:7890"
+	rec, body = do(t, h, "POST", "/api/accounts", good, nil)
+	if rec.Code != 200 || body["proxy_url"] != "http://127.0.0.1:7890" {
+		t.Fatalf("create with proxy_url: %d %v", rec.Code, body)
+	}
+	id, _ := body["id"].(string)
+
+	// 更新为另一个代理
+	upd := validAccount()
+	upd["proxy_url"] = "http://127.0.0.1:8888"
+	rec, body = do(t, h, "PUT", "/api/accounts/"+id, upd, nil)
+	if rec.Code != 200 || body["proxy_url"] != "http://127.0.0.1:8888" {
+		t.Fatalf("update proxy_url: %d %v", rec.Code, body)
+	}
+
+	// 清空代理
+	upd["proxy_url"] = ""
+	rec, body = do(t, h, "PUT", "/api/accounts/"+id, upd, nil)
+	if rec.Code != 200 || body["proxy_url"] != "" {
+		t.Fatalf("clear proxy_url: %d %v", rec.Code, body)
+	}
+}
+
 func TestNotifyTest(t *testing.T) {
 	t.Setenv("DEV_NOAUTH", "1")
 	store, _ := account.Open(t.TempDir())

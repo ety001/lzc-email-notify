@@ -46,8 +46,8 @@ func New(deps Deps) *Manager {
 
 // configKey 用于判断账号配置是否变更（变更需重启协程）。
 func configKey(a *account.Account) string {
-	return fmt.Sprintf("%s|%s|%d|%t|%s|%s|%d|%t",
-		a.Protocol, a.Host, a.Port, a.SSL, a.Username, a.Password, a.IntervalSec, a.Enabled)
+	return fmt.Sprintf("%s|%s|%d|%t|%s|%s|%s|%d|%t",
+		a.Protocol, a.Host, a.Port, a.SSL, a.Username, a.Password, a.ProxyURL, a.IntervalSec, a.Enabled)
 }
 
 // Sync 根据存储中的账号集合对齐轮询协程：

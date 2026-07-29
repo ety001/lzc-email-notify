@@ -33,6 +33,7 @@ const EMPTY_FORM = {
   ssl: true,
   username: '',
   password: '',
+  proxy_url: '',
   interval_min: '1',
   web_url: '',
   enabled: true,
@@ -48,6 +49,7 @@ function accountToForm(account) {
     ssl: !!account.ssl,
     username: account.username || '',
     password: '',
+    proxy_url: account.proxy_url || '',
     interval_min: String(Math.max(1, Math.round((account.interval_sec || 60) / 60))),
     web_url: account.web_url || '',
     enabled: !!account.enabled,
@@ -76,7 +78,7 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
     setForm((f) => ({ ...f, [key]: value }))
     setErrors((e) => ({ ...e, [key]: undefined }))
     // 连接参数变了，上次的测试结果即失效
-    if (['protocol', 'host', 'port', 'ssl', 'username', 'password'].includes(key)) {
+    if (['protocol', 'host', 'port', 'ssl', 'username', 'password', 'proxy_url'].includes(key)) {
       setTestResult(null)
     }
   }
@@ -142,6 +144,9 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
     if (form.web_url.trim() && !/^https?:\/\/.+/.test(form.web_url.trim())) {
       errs.web_url = '请输入以 http:// 或 https:// 开头的地址'
     }
+    if (form.proxy_url.trim() && !/^https?:\/\/.+/.test(form.proxy_url.trim())) {
+      errs.proxy_url = '代理地址需以 http:// 或 https:// 开头'
+    }
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -172,6 +177,7 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
           ssl: !!form.ssl,
           username: form.username.trim(),
           password: form.password,
+          proxy_url: form.proxy_url.trim(),
         })
       }
       setTestResult(res && res.ok ? { ok: true } : { ok: false, error: (res && res.error) || '连接失败' })
@@ -195,6 +201,7 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
       ssl: !!form.ssl,
       username: form.username.trim(),
       password: form.password, // 编辑时为空字符串表示不修改
+      proxy_url: form.proxy_url.trim(),
       interval_sec: Math.max(1, Math.round(Number(form.interval_min))) * 60,
       web_url: form.web_url.trim(),
       enabled: !!form.enabled,
@@ -347,6 +354,20 @@ export default function AccountFormDialog({ open, onOpenChange, account, onSaved
               />
               {fieldError('web_url')}
             </div>
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="f-proxy">HTTP 代理（可选）</Label>
+            <Input
+              id="f-proxy"
+              value={form.proxy_url}
+              onChange={(e) => set('proxy_url', e.target.value)}
+              placeholder="http://127.0.0.1:7890 或 http://user:pass@proxy:8080"
+            />
+            <p className="text-xs text-muted-foreground">
+              设置后该邮箱的查信流量经此 HTTP 代理（CONNECT 隧道）访问，支持 http/https 代理与可选账号密码
+            </p>
+            {fieldError('proxy_url')}
           </div>
 
           <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2.5">

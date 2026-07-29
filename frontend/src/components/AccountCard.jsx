@@ -169,6 +169,7 @@ export default function AccountCard({ account, onEdit, onChanged, mailAlert, onO
         <p className="truncate text-xs text-muted-foreground">
           {account.host}:{account.port}
           {account.ssl ? ' · SSL' : ''} · 每 {intervalMin} 分钟检查
+          {account.proxy_url ? ' · 代理' : ''}
         </p>
       </CardHeader>
 

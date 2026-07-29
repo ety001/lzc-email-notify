@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -27,7 +28,7 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.5.2"
+const Version = "0.6.0"
 
 // Server 是 API 服务。
 type Server struct {
@@ -164,6 +165,7 @@ type accountRequest struct {
 	SSL         bool   `json:"ssl"`
 	Username    string `json:"username"`
 	Password    string `json:"password"`
+	ProxyURL    string `json:"proxy_url"`
 	IntervalSec int    `json:"interval_sec"`
 	WebURL      string `json:"web_url"`
 	Enabled     bool   `json:"enabled"`
@@ -199,6 +201,7 @@ func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 		SSL:         req.SSL,
 		Username:    strings.TrimSpace(req.Username),
 		Password:    req.Password,
+		ProxyURL:    strings.TrimSpace(req.ProxyURL),
 		IntervalSec: account.ClampInterval(req.IntervalSec),
 		WebURL:      strings.TrimSpace(req.WebURL),
 		Enabled:     req.Enabled,
@@ -233,6 +236,11 @@ func validate(req *accountRequest, requirePassword bool) error {
 	if requirePassword && req.Password == "" {
 		return errors.New("密码/授权码不能为空")
 	}
+	if p := strings.TrimSpace(req.ProxyURL); p != "" {
+		if err := mailcheck.CheckProxyURL(p); err != nil {
+			return fmt.Errorf("HTTP 代理地址无效: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -262,6 +270,7 @@ func (s *Server) updateAccount(w http.ResponseWriter, r *http.Request) {
 		if req.Password != "" {
 			a.Password = req.Password
 		}
+		a.ProxyURL = strings.TrimSpace(req.ProxyURL)
 		a.IntervalSec = account.ClampInterval(req.IntervalSec)
 		a.WebURL = strings.TrimSpace(req.WebURL)
 		a.Enabled = req.Enabled
@@ -323,6 +332,7 @@ func (s *Server) testConnection(w http.ResponseWriter, r *http.Request) {
 		SSL:      req.SSL,
 		Username: strings.TrimSpace(req.Username),
 		Password: req.Password,
+		ProxyURL: strings.TrimSpace(req.ProxyURL),
 	}
 	if err := mailcheck.Test(r.Context(), acc); err != nil {
 		log.Printf("[api] 测试连接失败: %s://%s@%s:%d ssl=%v: %v", acc.Protocol, acc.Username, acc.Host, acc.Port, acc.SSL, err)

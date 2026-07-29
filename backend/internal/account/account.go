@@ -54,6 +54,7 @@ type Account struct {
 	SSL         bool      `json:"ssl"`
 	Username    string    `json:"username"`
 	Password    string    `json:"password,omitempty"`
+	ProxyURL    string    `json:"proxy_url,omitempty"` // 可选 HTTP 代理（CONNECT 隧道）
 	IntervalSec int       `json:"interval_sec"`
 	WebURL      string    `json:"web_url"`
 	Enabled     bool      `json:"enabled"`
@@ -74,6 +75,7 @@ type View struct {
 	SSL         bool      `json:"ssl"`
 	Username    string    `json:"username"`
 	HasPassword bool      `json:"has_password"`
+	ProxyURL    string    `json:"proxy_url"`
 	IntervalSec int       `json:"interval_sec"`
 	WebURL      string    `json:"web_url"`
 	Enabled     bool      `json:"enabled"`
@@ -93,6 +95,7 @@ func (a *Account) ToView() View {
 		SSL:         a.SSL,
 		Username:    a.Username,
 		HasPassword: a.Password != "",
+		ProxyURL:    a.ProxyURL,
 		IntervalSec: a.IntervalSec,
 		WebURL:      a.WebURL,
 		Enabled:     a.Enabled,

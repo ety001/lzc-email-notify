@@ -11,6 +11,7 @@ package mailcheck
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -95,8 +96,12 @@ func imapOptions() *imapclient.Options {
 
 // dialIMAP 建立并返回 IMAP 连接。ssl=true 隐式 TLS；ssl=false 时先明文，
 // 若服务器声明 STARTTLS 则用 DialStartTLS 升级，升级失败回落明文。
+// 账号配置了 HTTP 代理时经 CONNECT 隧道连接。
 func dialIMAP(acc *account.Account) (*imapclient.Client, error) {
 	a := addr(acc)
+	if acc.ProxyURL != "" {
+		return dialIMAPViaProxy(acc, a)
+	}
 	if acc.SSL {
 		return imapclient.DialTLS(a, imapOptions())
 	}
@@ -112,6 +117,50 @@ func dialIMAP(acc *account.Account) (*imapclient.Client, error) {
 		return imapclient.DialInsecure(a, imapOptions())
 	}
 	return probe, nil
+}
+
+// dialIMAPViaProxy 经 HTTP CONNECT 代理隧道建立 IMAP 连接。
+// 隧道对端是代理，TLS ServerName 必须显式指定为邮件服务器域名。
+func dialIMAPViaProxy(acc *account.Account, a string) (*imapclient.Client, error) {
+	o := imapOptions()
+	o.TLSConfig = &tls.Config{ServerName: acc.Host}
+	if acc.SSL {
+		conn, err := dialViaProxy(acc.ProxyURL, a, opTimeout)
+		if err != nil {
+			return nil, err
+		}
+		tconn := tls.Client(conn, o.TLSConfig)
+		_ = tconn.SetDeadline(time.Now().Add(opTimeout))
+		if err := tconn.Handshake(); err != nil {
+			conn.Close()
+			return nil, fmt.Errorf("TLS 握手失败: %w", err)
+		}
+		_ = tconn.SetDeadline(time.Time{})
+		return imapclient.New(tconn, o), nil
+	}
+	// 明文：先探测 STARTTLS 能力
+	probeConn, err := dialViaProxy(acc.ProxyURL, a, opTimeout)
+	if err != nil {
+		return nil, err
+	}
+	probe := imapclient.New(probeConn, o)
+	if !probe.Caps().Has(imap.CapStartTLS) {
+		return probe, nil
+	}
+	probe.Close()
+	conn, err := dialViaProxy(acc.ProxyURL, a, opTimeout)
+	if err != nil {
+		return nil, err
+	}
+	if c, err := imapclient.NewStartTLS(conn, o); err == nil {
+		return c, nil
+	}
+	// STARTTLS 升级失败回落明文
+	conn2, err := dialViaProxy(acc.ProxyURL, a, opTimeout)
+	if err != nil {
+		return nil, err
+	}
+	return imapclient.New(conn2, o), nil
 }
 
 // imapCtx 返回带 25 秒超时的子 context，并启动看门狗：
@@ -283,8 +332,20 @@ func sortMailsByUID(mails []Mail) {
 // POP3
 // ---------------------------------------------------------------------------
 
+// dialPOP3 按账号配置建立 POP3 连接（配置 HTTP 代理时经 CONNECT 隧道）。
+func dialPOP3(acc *account.Account, timeout time.Duration) (*pop3.Client, error) {
+	if acc.ProxyURL != "" {
+		conn, err := dialViaProxy(acc.ProxyURL, addr(acc), timeout)
+		if err != nil {
+			return nil, err
+		}
+		return pop3.DialConn(conn, acc.Host, acc.SSL, timeout)
+	}
+	return pop3.Dial(addr(acc), acc.SSL, timeout)
+}
+
 func checkPOP3(_ context.Context, acc *account.Account) (*Result, error) {
-	c, err := pop3.Dial(addr(acc), acc.SSL, opTimeout)
+	c, err := dialPOP3(acc, opTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("连接服务器失败: %w", err)
 	}
@@ -351,7 +412,7 @@ func testPOP3(ctx context.Context, acc *account.Account) error {
 			timeout = d
 		}
 	}
-	c, err := pop3.Dial(addr(acc), acc.SSL, timeout)
+	c, err := dialPOP3(acc, timeout)
 	if err != nil {
 		return fmt.Errorf("连接服务器失败: %w", err)
 	}

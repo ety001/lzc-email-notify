@@ -37,24 +37,33 @@ func Dial(addr string, ssl bool, timeout time.Duration) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("服务器地址无效: %w", err)
 	}
+	conn, err := d.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return DialConn(conn, host, ssl, timeout)
+}
 
+// DialConn 在既有连接（如 HTTP CONNECT 代理隧道）上建立 POP3 会话。
+// host 仅用于 TLS ServerName；ssl=true 时立即在连接上做隐式 TLS，
+// 否则先明文、若服务器 CAPA 声明支持 STLS 则升级为 TLS。
+func DialConn(conn net.Conn, host string, ssl bool, timeout time.Duration) (*Client, error) {
 	if ssl {
-		conn, err := tls.DialWithDialer(d, "tcp", addr, &tls.Config{ServerName: host})
-		if err != nil {
+		tconn := tls.Client(conn, &tls.Config{ServerName: host})
+		_ = tconn.SetDeadline(time.Now().Add(timeout))
+		if err := tconn.Handshake(); err != nil {
+			conn.Close()
 			return nil, err
 		}
-		c := &Client{conn: conn, r: bufio.NewReader(conn), timeout: timeout}
+		_ = tconn.SetDeadline(time.Time{})
+		c := &Client{conn: tconn, r: bufio.NewReader(tconn), timeout: timeout}
 		if _, err := c.readOK(); err != nil {
-			conn.Close()
+			tconn.Close()
 			return nil, err
 		}
 		return c, nil
 	}
 
-	conn, err := d.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
 	c := &Client{conn: conn, r: bufio.NewReader(conn), timeout: timeout}
 	if _, err := c.readOK(); err != nil {
 		conn.Close()
