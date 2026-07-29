@@ -62,9 +62,12 @@ func (h *Hub) NotifyChange(uid string) {
 // ServeHTTP 处理 GET /api/ws（挂在 authMiddleware 之后，uid 取自请求上下文）。
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	uid := uidOf(r)
-	// 默认 Origin 校验：浏览器 WS 必带 Origin，跨站连接会被拒绝；
-	// 鉴权由 authMiddleware 完成，非浏览器客户端（无 Origin 头）放行
-	c, err := websocket.Accept(w, r, nil)
+	// Origin 校验：懒猫网关转发后 Host 变为内部地址（server:8000），
+	// 与浏览器 Origin（*.heiyu.space）必然不一致，因此按域名白名单校验，
+	// 防止跨站 WS 盗用网关会话；本地开发放行 localhost/127.0.0.1
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		OriginPatterns: []string{"*.heiyu.space", "localhost", "localhost:*", "127.0.0.1", "127.0.0.1:*"},
+	})
 	if err != nil {
 		log.Printf("[ws] uid=%s 握手失败: %v", uid, err)
 		return
