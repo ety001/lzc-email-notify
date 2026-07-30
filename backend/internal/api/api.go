@@ -28,7 +28,7 @@ type Syncer interface {
 }
 
 // Version 是后端版本号，随发布更新，通过 /api/health 暴露给前端做版本核对。
-const Version = "0.6.0"
+const Version = "0.6.1"
 
 // Server 是 API 服务。
 type Server struct {
@@ -405,17 +405,16 @@ func (s *Server) testNotify(w http.ResponseWriter, r *http.Request) {
 // sendNotify 按用户设置（设备过滤）发送通知。
 func (s *Server) sendNotify(ctx context.Context, uid string, p notify.Payload) error {
 	if st := s.store.GetSettings(uid); st.DeviceFilterEnabled {
-		if dm, ok := s.sender.(notify.DeviceManager); ok {
+		if dm, ok := notify.DeviceManagerOf(s.sender); ok {
 			return dm.SendToDevices(ctx, uid, st.NotifyDevices, p)
 		}
 	}
 	return s.sender.Send(ctx, uid, p)
 }
 
-// deviceManager 返回懒猫设备管理能力；非懒猫环境（LogSender）返回 false。
+// deviceManager 返回懒猫设备管理能力；未接入懒猫环境时返回 false。
 func (s *Server) deviceManager() (notify.DeviceManager, bool) {
-	dm, ok := s.sender.(notify.DeviceManager)
-	return dm, ok
+	return notify.DeviceManagerOf(s.sender)
 }
 
 // getSettings 返回当前用户信息、可通知设备列表与已保存的设备选择。
