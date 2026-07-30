@@ -47,14 +47,14 @@ export default function SettingsPage() {
       .getSettings()
       .then((res) => {
         setData(res)
-        const all = new Set((res.devices || []).map((d) => d.id))
         if (res.device_filter_enabled) {
           // 已启用过滤：以保存的选择为准（不在列表里的旧设备 ID 丢弃）
+          const all = new Set((res.devices || []).map((d) => d.id))
           const saved = new Set(res.selected_notify_devices || [])
           setSelected(new Set([...all].filter((id) => saved.has(id))))
         } else {
-          // 未启用过滤：等于全部选中
-          setSelected(all)
+          // 未启用过滤：默认全不选（新设备需手动勾选才会收到通知）
+          setSelected(new Set())
         }
       })
       .catch((err) => setError(err.message || '加载设置失败'))
@@ -63,17 +63,16 @@ export default function SettingsPage() {
   const devices = useMemo(() => data?.devices || [], [data])
   const dirty = useMemo(() => {
     if (!data || !selected) return false
-    const allOn = selected.size === devices.length
+    const allOn = selected.size === devices.length && devices.length > 0
     const savedEnabled = !!data.device_filter_enabled
     const savedSet = new Set(data.selected_notify_devices || [])
-    if (allOn && !savedEnabled) return false
-    if (!allOn) {
-      if (!savedEnabled) return true
-      if (savedSet.size !== selected.size) return true
-      for (const id of selected) if (!savedSet.has(id)) return true
-      return false
-    }
-    return savedEnabled
+    if (allOn) return savedEnabled
+    // 未启用过滤时的默认全不选是基线状态，不算修改；
+    // 勾选了部分设备才表示要启用过滤
+    if (!savedEnabled) return selected.size > 0
+    if (savedSet.size !== selected.size) return true
+    for (const id of selected) if (!savedSet.has(id)) return true
+    return false
   }, [data, selected, devices])
 
   const toggle = (id, checked) => {
@@ -85,9 +84,10 @@ export default function SettingsPage() {
     })
   }
 
-  // 全部开关打开 = 不过滤（enabled:false）；否则按选中集合定向发送
+  // 全部开关打开 = 不过滤（enabled:false，向所有在线设备广播）；
+  // 否则按选中集合定向发送（全不选表示不发送任何通知）
   const buildPayload = () => {
-    const allOn = selected.size === devices.length
+    const allOn = selected.size === devices.length && devices.length > 0
     if (allOn) return { enabled: false, devices: [] }
     return { enabled: true, devices: [...selected] }
   }
@@ -223,6 +223,15 @@ export default function SettingsPage() {
                           >
                             {d.online ? '在线' : '离线'}
                           </Badge>
+                          {d.notify_unsupported && (
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 border-amber-300 text-[10px] text-amber-600"
+                              title="该设备未实现系统通知能力（如无界面的 CLI 客户端），发送时将被跳过"
+                            >
+                              不支持通知
+                            </Badge>
+                          )}
                         </p>
                         {d.model && (
                           <p className="truncate text-xs text-muted-foreground">{d.model}</p>
@@ -246,6 +255,11 @@ export default function SettingsPage() {
                     {busy === 'test' ? <Loader2 className="animate-spin" /> : <Bell />}
                     测试客户端通知
                   </Button>
+                  {selected && selected.size === 0 && devices.length > 0 && (
+                    <p className="w-full text-xs text-amber-600">
+                      当前未选择任何设备，保存后将不会发送任何通知
+                    </p>
+                  )}
                   <p className="w-full text-xs text-muted-foreground">
                     「测试客户端通知」会先保存当前选择，再向选中的在线设备发送一条测试通知
                   </p>

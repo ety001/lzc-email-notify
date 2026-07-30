@@ -30,6 +30,9 @@ type DeviceInfo struct {
 	Online     bool   `json:"online"`
 	IsMobile   bool   `json:"is_mobile"`
 	IsTV       bool   `json:"is_tv"`
+	// NotifyUnsupported 为 true 表示发送时发现该设备未实现系统通知能力
+	//（如无界面的 hclient-cli），发送时会被跳过。
+	NotifyUnsupported bool `json:"notify_unsupported,omitempty"`
 }
 
 // UserInfo 是懒猫账号概要。
@@ -109,6 +112,33 @@ func (a *AutoSender) probeLoop(ctx context.Context) {
 		case <-time.After(retryInterval):
 		}
 	}
+}
+
+// CapabilityReporter 报告发送过程中发现的不支持系统通知的设备。
+type CapabilityReporter interface {
+	// UnsupportedNotifyDevices 返回已知不支持系统通知的设备 ID 列表。
+	UnsupportedNotifyDevices() []string
+}
+
+// UnsupportedDevicesOf 提取 Sender 已发现的不支持系统通知的设备集合；
+// Sender 不具备该能力或无记录时返回 nil。AutoSender 自动解包。
+func UnsupportedDevicesOf(s Sender) map[string]bool {
+	if a, ok := s.(*AutoSender); ok {
+		s = a.current()
+	}
+	r, ok := s.(CapabilityReporter)
+	if !ok {
+		return nil
+	}
+	ids := r.UnsupportedNotifyDevices()
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		out[id] = true
+	}
+	return out
 }
 
 // DeviceManagerOf 提取 Sender 的设备管理能力。

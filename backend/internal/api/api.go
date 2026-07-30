@@ -440,6 +440,14 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 	if devices == nil {
 		devices = []notify.DeviceInfo{}
 	}
+	// 标注发送历史中发现的不支持系统通知的设备
+	if unsupported := notify.UnsupportedDevicesOf(s.sender); len(unsupported) > 0 {
+		for i := range devices {
+			if unsupported[devices[i].ID] {
+				devices[i].NotifyUnsupported = true
+			}
+		}
+	}
 	st := s.store.GetSettings(uid)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user":                    user,
