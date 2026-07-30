@@ -39,9 +39,9 @@ func main() {
 
 	ev := events.New()
 
-	notifyCtx, notifyCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	notifyCtx, notifyCancel := context.WithCancel(context.Background())
+	defer notifyCancel()
 	sender := notify.New(notifyCtx)
-	notifyCancel()
 
 	pm := poller.New(poller.Deps{Store: store, Events: ev, Sender: sender})
 	pm.Sync()

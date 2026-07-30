@@ -85,7 +85,7 @@
 | GET | `/api/events?limit=50` | 最近事件，按时间倒序 | - | `Event[]`（空时为 `[]`） |
 | GET | `/api/ws` | WebSocket 推送通道（替代轮询）。连接后立发全量快照，数据变更时去抖 200ms 推送；服务端 30s ping 心跳 | - | `{"type":"update","accounts":Account[],"events":Event[]}` |
 | POST | `/api/notify/test` | 向当前用户发送一条懒猫系统测试通知（遵循已保存的设备过滤） | - | `{"ok":true}`；失败返回 502 `{"error":"..."}` |
-| GET | `/api/settings` | 设置页数据：当前用户信息、名下设备列表、已保存的通知设备选择 | - | `{"user":{uid,nickname,avatar},"devices":[{id,name,remark_name,model,online,is_mobile,is_tv}],"device_filter_enabled":bool,"selected_notify_devices":[...]}`；非懒猫环境返回 503 |
+| GET | `/api/settings` | 设置页数据：当前用户信息、名下设备列表、已保存的通知设备选择 | - | `{"user":{uid,nickname,avatar},"devices":[{id,name,remark_name,model,online,is_mobile,is_tv,notify_unsupported}],"device_filter_enabled":bool,"selected_notify_devices":[...]}`；非懒猫环境返回 503。`notify_unsupported:true` 表示发送历史中发现该设备未实现系统通知能力（发送时跳过），仅在已被标记时出现 |
 | PUT | `/api/settings/notify-devices` | 保存通知设备选择（`enabled:false` 表示向全部在线设备广播） | `{"enabled":bool,"devices":["device_id",...]}` | `{"ok":true}` |
 
 其他规则：
