@@ -64,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version: "1.26.10"
           cache-dependency-path: backend/go.sum
       - run: go vet ./...
       - run: go test ./...
@@ -91,7 +91,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version: "1.26.10"
           cache-dependency-path: backend/go.sum
       - name: 执行 build.sh 全量构建（日志写入 Job Summary）
         run: |

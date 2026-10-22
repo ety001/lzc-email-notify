@@ -9,7 +9,7 @@ COPY frontend/ ./
 RUN pnpm build
 
 # Stage 2: 构建后端（静态编译）
-FROM golang:1.26-alpine AS backend-builder
+FROM golang:1.26.10-alpine AS backend-builder
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
